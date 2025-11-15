@@ -54,40 +54,55 @@ The daemon runs in the foreground. Use Ctrl+C to stop gracefully, or:
 ./bin/devlog status  # Shows recent events
 ```
 
-### Install Git Hooks (Global)
+### Install Modules
 
-Install the post-commit hook globally for all repositories on your system:
-
-```bash
-./hooks/install.sh
-```
-
-After installation, every commit in **any repository** will be automatically captured by devlog.
-
-### Install Shell Hooks
-
-Install shell hooks to automatically capture shell commands:
+DevLog uses a modular architecture. Install modules to enable specific event capture:
 
 ```bash
-./hooks/install-shell.sh
+# List available modules
+./bin/devlog module list
+
+# Install git module (captures commits globally)
+./bin/devlog module install git
+
+# Install shell module (captures shell commands)
+./bin/devlog module install shell
 ```
 
-This will add devlog integration to your `~/.bashrc` or `~/.zshrc`. After installation:
+After installing the git module, every commit in **any repository** will be automatically captured by devlog.
+
+After installing the shell module:
 - All shell commands are captured (filtered based on your config)
 - Exit codes and command duration are tracked
 - Commands are linked to git repos when run inside them
+- Restart your shell or run `source ~/.bashrc` (or `~/.zshrc`) to activate
 
-Configure shell capture in `~/.config/devlog/config.yaml`:
+Configure module behavior in `~/.config/devlog/config.yaml`:
 
 ```yaml
-shell:
-  enabled: true
-  capture_mode: important  # or "all"
-  ignore_list:
-    - ls
-    - cd
-    - pwd
-    - echo
+modules:
+  git:
+    enabled: true
+  shell:
+    enabled: true
+    capture_mode: important  # or "all"
+    ignore_list:
+      - ls
+      - cd
+      - pwd
+      - echo
+```
+
+### Uninstall Modules
+
+To remove a module:
+
+```bash
+# Uninstall git module (removes hooks)
+./bin/devlog module uninstall git
+
+# Uninstall shell module (removes hooks and cleans RC files)
+./bin/devlog module uninstall shell
 ```
 
 ### Manual Event Ingestion

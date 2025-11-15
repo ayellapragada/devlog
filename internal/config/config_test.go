@@ -70,7 +70,6 @@ func TestValidate(t *testing.T) {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			// Check tilde expansion worked
 			if !tt.wantErr && tt.name == "tilde expansion" {
 				if tt.config.ObsidianPath[0] == '~' {
 					t.Error("tilde was not expanded")
@@ -81,7 +80,6 @@ func TestValidate(t *testing.T) {
 }
 
 func TestLoadConfig(t *testing.T) {
-	// Create a temporary config file
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
@@ -99,7 +97,6 @@ func TestLoadConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Read it back
 	readData, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatal(err)

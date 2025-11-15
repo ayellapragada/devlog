@@ -15,10 +15,10 @@ type Module interface {
 
 type InstallContext struct {
 	Interactive bool
-	ConfigDir string
-	DataDir string
-	HomeDir string
-	Log func(format string, args ...interface{})
+	ConfigDir   string
+	DataDir     string
+	HomeDir     string
+	Log         func(format string, args ...interface{})
 }
 
 type Registry struct {

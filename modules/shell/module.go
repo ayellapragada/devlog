@@ -10,30 +10,21 @@ import (
 	"devlog/internal/modules"
 )
 
-//go:embed hooks/devlog.sh
 var devlogShellScript string
 
-//go:embed install.sh
-var installScript string
-
-// Module implements the shell integration module
 type Module struct{}
 
-// Name returns the module identifier
 func (m *Module) Name() string {
 	return "shell"
 }
 
-// Description returns a user-friendly description
 func (m *Module) Description() string {
 	return "Capture shell commands automatically"
 }
 
-// Install sets up shell hooks
 func (m *Module) Install(ctx *modules.InstallContext) error {
 	ctx.Log("Installing shell hooks...")
 
-	// Detect current shell
 	shellEnv := os.Getenv("SHELL")
 	currentShell := "unknown"
 	if shellEnv != "" {
@@ -43,13 +34,11 @@ func (m *Module) Install(ctx *modules.InstallContext) error {
 	ctx.Log("Current shell: %s", currentShell)
 	ctx.Log("")
 
-	// Create hooks directory in data dir to store the shell script
 	hooksDir := filepath.Join(ctx.DataDir, "hooks")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
 		return fmt.Errorf("create hooks directory: %w", err)
 	}
 
-	// Write devlog.sh script
 	scriptPath := filepath.Join(hooksDir, "devlog.sh")
 	if err := os.WriteFile(scriptPath, []byte(devlogShellScript), 0644); err != nil {
 		return fmt.Errorf("write devlog.sh: %w", err)
@@ -57,7 +46,6 @@ func (m *Module) Install(ctx *modules.InstallContext) error {
 
 	ctx.Log("✓ Created shell integration script at %s", scriptPath)
 
-	// Add source line to appropriate RC file
 	sourceLine := fmt.Sprintf(`source "%s"`, scriptPath)
 
 	switch currentShell {
@@ -95,7 +83,6 @@ func (m *Module) installBash(ctx *modules.InstallContext, sourceLine string) err
 
 	var rcFile string
 
-	// On macOS, prefer .bash_profile if it exists
 	if _, err := os.Stat("/System/Library/CoreServices/SystemVersion.plist"); err == nil {
 		bashProfile := filepath.Join(ctx.HomeDir, ".bash_profile")
 		if _, err := os.Stat(bashProfile); err == nil {
@@ -103,7 +90,6 @@ func (m *Module) installBash(ctx *modules.InstallContext, sourceLine string) err
 		}
 	}
 
-	// Default to .bashrc
 	if rcFile == "" {
 		rcFile = filepath.Join(ctx.HomeDir, ".bashrc")
 	}
@@ -118,7 +104,6 @@ func (m *Module) installZsh(ctx *modules.InstallContext, sourceLine string) erro
 }
 
 func (m *Module) addToRcFile(ctx *modules.InstallContext, rcFile string, sourceLine string) error {
-	// Check if already installed
 	if _, err := os.Stat(rcFile); err == nil {
 		content, err := os.ReadFile(rcFile)
 		if err != nil {
@@ -131,7 +116,6 @@ func (m *Module) addToRcFile(ctx *modules.InstallContext, rcFile string, sourceL
 			return nil
 		}
 
-		// Backup RC file
 		backupPath := fmt.Sprintf("%s.backup.devlog", rcFile)
 		if err := os.WriteFile(backupPath, content, 0644); err != nil {
 			return fmt.Errorf("create backup: %w", err)
@@ -139,7 +123,6 @@ func (m *Module) addToRcFile(ctx *modules.InstallContext, rcFile string, sourceL
 		ctx.Log("Created backup: %s", backupPath)
 	}
 
-	// Add source line
 	f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", rcFile, err)
@@ -155,11 +138,9 @@ func (m *Module) addToRcFile(ctx *modules.InstallContext, rcFile string, sourceL
 	return nil
 }
 
-// Uninstall removes shell hooks
 func (m *Module) Uninstall(ctx *modules.InstallContext) error {
 	ctx.Log("Uninstalling shell hooks...")
 
-	// Remove the devlog.sh script
 	scriptPath := filepath.Join(ctx.DataDir, "hooks", "devlog.sh")
 	if _, err := os.Stat(scriptPath); err == nil {
 		if err := os.Remove(scriptPath); err != nil {
@@ -168,16 +149,104 @@ func (m *Module) Uninstall(ctx *modules.InstallContext) error {
 		ctx.Log("✓ Removed %s", scriptPath)
 	}
 
-	// Inform user to remove from RC files
+	shellEnv := os.Getenv("SHELL")
+	currentShell := "unknown"
+	if shellEnv != "" {
+		currentShell = filepath.Base(shellEnv)
+	}
+
 	ctx.Log("")
-	ctx.Log("Please manually remove the 'devlog shell integration' section from your shell RC files:")
-	ctx.Log("  ~/.bashrc or ~/.bash_profile (for Bash)")
-	ctx.Log("  ~/.zshrc (for Zsh)")
+
+	switch currentShell {
+	case "bash":
+		m.uninstallBash(ctx)
+	case "zsh":
+		m.uninstallZsh(ctx)
+	default:
+		ctx.Log("Please manually remove the 'devlog shell integration' section from your shell RC files:")
+		ctx.Log("  ~/.bashrc or ~/.bash_profile (for Bash)")
+		ctx.Log("  ~/.zshrc (for Zsh)")
+	}
 
 	return nil
 }
 
-// DefaultConfig returns default shell module configuration
+func (m *Module) uninstallBash(ctx *modules.InstallContext) {
+	ctx.Log("Checking Bash configuration...")
+
+	bashProfile := filepath.Join(ctx.HomeDir, ".bash_profile")
+	m.removeFromRcFile(ctx, bashProfile)
+
+	bashrc := filepath.Join(ctx.HomeDir, ".bashrc")
+	m.removeFromRcFile(ctx, bashrc)
+}
+
+func (m *Module) uninstallZsh(ctx *modules.InstallContext) {
+	ctx.Log("Checking Zsh configuration...")
+	zshrc := filepath.Join(ctx.HomeDir, ".zshrc")
+	m.removeFromRcFile(ctx, zshrc)
+}
+
+func (m *Module) removeFromRcFile(ctx *modules.InstallContext, rcFile string) {
+	if _, err := os.Stat(rcFile); err != nil {
+		return
+	}
+
+	content, err := os.ReadFile(rcFile)
+	if err != nil {
+		ctx.Log("Warning: couldn't read %s: %v", rcFile, err)
+		return
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "devlog shell integration") &&
+		!strings.Contains(contentStr, "devlog.sh") {
+		return
+	}
+
+	backupPath := fmt.Sprintf("%s.backup.devlog.uninstall", rcFile)
+	if err := os.WriteFile(backupPath, content, 0644); err != nil {
+		ctx.Log("Warning: couldn't create backup of %s: %v", rcFile, err)
+		return
+	}
+	ctx.Log("Created backup: %s", backupPath)
+
+	lines := strings.Split(contentStr, "\n")
+	var newLines []string
+	skipNext := false
+
+	for _, line := range lines {
+		if strings.Contains(line, "# devlog shell integration") {
+			skipNext = true
+			continue
+		}
+
+		if skipNext && strings.Contains(line, "devlog.sh") {
+			skipNext = false
+			continue
+		}
+
+		skipNext = false
+		newLines = append(newLines, line)
+	}
+
+	for len(newLines) > 0 && strings.TrimSpace(newLines[len(newLines)-1]) == "" {
+		newLines = newLines[:len(newLines)-1]
+	}
+
+	newContent := strings.Join(newLines, "\n")
+	if len(newLines) > 0 && !strings.HasSuffix(newContent, "\n") {
+		newContent += "\n"
+	}
+
+	if err := os.WriteFile(rcFile, []byte(newContent), 0644); err != nil {
+		ctx.Log("Warning: couldn't write to %s: %v", rcFile, err)
+		return
+	}
+
+	ctx.Log("✓ Removed devlog hook from %s", rcFile)
+}
+
 func (m *Module) DefaultConfig() interface{} {
 	return map[string]interface{}{
 		"capture_mode": "important",
@@ -188,14 +257,12 @@ func (m *Module) DefaultConfig() interface{} {
 	}
 }
 
-// ValidateConfig validates the shell module configuration
 func (m *Module) ValidateConfig(config interface{}) error {
 	cfg, ok := config.(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("config must be a map")
 	}
 
-	// Validate capture_mode if present
 	if mode, ok := cfg["capture_mode"].(string); ok {
 		if mode != "all" && mode != "important" {
 			return fmt.Errorf("capture_mode must be 'all' or 'important'")
@@ -206,6 +273,5 @@ func (m *Module) ValidateConfig(config interface{}) error {
 }
 
 func init() {
-	// Register the shell module
 	modules.Register(&Module{})
 }

@@ -18,13 +18,11 @@ func main() {
 }
 
 func run() error {
-	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	// Get database path
 	dataDir, err := config.DataDir()
 	if err != nil {
 		return err
@@ -32,14 +30,12 @@ func run() error {
 
 	dbPath := filepath.Join(dataDir, "events.db")
 
-	// Open storage
 	store, err := storage.New(dbPath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
-	// Create and start daemon
 	d := daemon.New(cfg, store)
 	return d.Start()
 }

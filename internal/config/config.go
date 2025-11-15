@@ -8,36 +8,30 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the application configuration
 type Config struct {
 	ObsidianPath      string                  `yaml:"obsidian_path"`
 	HTTP              HTTPConfig              `yaml:"http"`
 	SessionGapMinutes int                     `yaml:"session_gap_minutes,omitempty"`
 	Modules           map[string]ModuleConfig `yaml:"modules,omitempty"`
 
-	// Deprecated: Use Modules["shell"] instead
 	Shell ShellConfig `yaml:"shell,omitempty"`
 }
 
-// ModuleConfig represents configuration for a specific module
 type ModuleConfig struct {
 	Enabled bool                   `yaml:"enabled"`
 	Config  map[string]interface{} `yaml:",inline"`
 }
 
-// HTTPConfig contains HTTP server settings
 type HTTPConfig struct {
 	Port int `yaml:"port"`
 }
 
-// ShellConfig contains shell hook settings
 type ShellConfig struct {
 	Enabled     bool     `yaml:"enabled"`
-	CaptureMode string   `yaml:"capture_mode,omitempty"` // "all" or "important" (default)
-	IgnoreList  []string `yaml:"ignore_list,omitempty"`  // Commands to ignore (e.g., "ls", "cd")
+	CaptureMode string   `yaml:"capture_mode,omitempty"`
+	IgnoreList  []string `yaml:"ignore_list,omitempty"`
 }
 
-// DefaultConfig returns a config with sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
 		HTTP: HTTPConfig{
@@ -47,7 +41,6 @@ func DefaultConfig() *Config {
 	}
 }
 
-// ConfigDir returns the config directory path (~/.config/devlog)
 func ConfigDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -56,7 +49,6 @@ func ConfigDir() (string, error) {
 	return filepath.Join(home, ".config", "devlog"), nil
 }
 
-// ConfigPath returns the full path to the config file
 func ConfigPath() (string, error) {
 	dir, err := ConfigDir()
 	if err != nil {
@@ -65,7 +57,6 @@ func ConfigPath() (string, error) {
 	return filepath.Join(dir, "config.yaml"), nil
 }
 
-// DataDir returns the data directory path (~/.local/share/devlog)
 func DataDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -74,7 +65,6 @@ func DataDir() (string, error) {
 	return filepath.Join(home, ".local", "share", "devlog"), nil
 }
 
-// QueueDir returns the queue directory path (~/.local/share/devlog/queue)
 func QueueDir() (string, error) {
 	dataDir, err := DataDir()
 	if err != nil {
@@ -83,7 +73,6 @@ func QueueDir() (string, error) {
 	return filepath.Join(dataDir, "queue"), nil
 }
 
-// Save writes the config to the config file
 func (c *Config) Save() error {
 	path, err := ConfigPath()
 	if err != nil {
@@ -102,7 +91,6 @@ func (c *Config) Save() error {
 	return nil
 }
 
-// Load reads and parses the config file
 func Load() (*Config, error) {
 	path, err := ConfigPath()
 	if err != nil {
@@ -129,13 +117,11 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// Validate checks if the config is valid
 func (c *Config) Validate() error {
 	if c.ObsidianPath == "" {
 		return fmt.Errorf("obsidian_path is required")
 	}
 
-	// Expand tilde in path
 	if c.ObsidianPath[0] == '~' {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -151,7 +137,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// IsModuleEnabled checks if a module is enabled
 func (c *Config) IsModuleEnabled(moduleName string) bool {
 	if c.Modules == nil {
 		return false
@@ -160,7 +145,6 @@ func (c *Config) IsModuleEnabled(moduleName string) bool {
 	return exists && modCfg.Enabled
 }
 
-// GetModuleConfig returns the configuration for a specific module
 func (c *Config) GetModuleConfig(moduleName string) (map[string]interface{}, bool) {
 	if c.Modules == nil {
 		return nil, false
@@ -172,7 +156,6 @@ func (c *Config) GetModuleConfig(moduleName string) (map[string]interface{}, boo
 	return modCfg.Config, true
 }
 
-// SetModuleEnabled enables or disables a module
 func (c *Config) SetModuleEnabled(moduleName string, enabled bool) {
 	if c.Modules == nil {
 		c.Modules = make(map[string]ModuleConfig)
@@ -182,7 +165,6 @@ func (c *Config) SetModuleEnabled(moduleName string, enabled bool) {
 	c.Modules[moduleName] = modCfg
 }
 
-// SetModuleConfig sets the configuration for a module
 func (c *Config) SetModuleConfig(moduleName string, config map[string]interface{}) {
 	if c.Modules == nil {
 		c.Modules = make(map[string]ModuleConfig)
@@ -192,14 +174,10 @@ func (c *Config) SetModuleConfig(moduleName string, config map[string]interface{
 	c.Modules[moduleName] = modCfg
 }
 
-// ShouldCaptureCommand checks if a shell command should be captured
-// This maintains backward compatibility with the old shell config
 func (c *Config) ShouldCaptureCommand(command string) bool {
-	// Check new module-based config first
 	if c.IsModuleEnabled("shell") {
 		shellCfg, ok := c.GetModuleConfig("shell")
 		if ok {
-			// Extract shell-specific settings
 			captureMode, _ := shellCfg["capture_mode"].(string)
 			ignoreList, _ := shellCfg["ignore_list"].([]interface{})
 
@@ -207,12 +185,10 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 		}
 	}
 
-	// Fall back to old shell config for backward compatibility
 	if !c.Shell.Enabled {
 		return false
 	}
 
-	// Extract the base command (first word)
 	baseCmd := command
 	for i, ch := range command {
 		if ch == ' ' || ch == '\t' {
@@ -221,9 +197,7 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 		}
 	}
 
-	// If capture mode is "all", capture everything except ignored commands
 	if c.Shell.CaptureMode == "all" {
-		// Check ignore list
 		for _, ignored := range c.Shell.IgnoreList {
 			if baseCmd == ignored {
 				return false
@@ -232,22 +206,16 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 		return true
 	}
 
-	// Default "important" mode - filter out common navigation/viewing commands
-	// Always check ignore list first
 	for _, ignored := range c.Shell.IgnoreList {
 		if baseCmd == ignored {
 			return false
 		}
 	}
 
-	// In "important" mode, only capture commands that are likely meaningful
-	// (build tools, git commands, package managers, etc.)
-	return true // For now, let ignore list handle filtering
+	return true
 }
 
-// shouldCaptureWithConfig is a helper for checking if a command should be captured
 func shouldCaptureWithConfig(command string, captureMode string, ignoreList []interface{}) bool {
-	// Extract the base command (first word)
 	baseCmd := command
 	for i, ch := range command {
 		if ch == ' ' || ch == '\t' {
@@ -256,7 +224,6 @@ func shouldCaptureWithConfig(command string, captureMode string, ignoreList []in
 		}
 	}
 
-	// Convert ignoreList to []string
 	ignored := make([]string, 0, len(ignoreList))
 	for _, item := range ignoreList {
 		if s, ok := item.(string); ok {
@@ -264,23 +231,19 @@ func shouldCaptureWithConfig(command string, captureMode string, ignoreList []in
 		}
 	}
 
-	// Check ignore list
 	for _, ig := range ignored {
 		if baseCmd == ig {
 			return false
 		}
 	}
 
-	// If capture mode is "all", capture everything (except ignored)
 	if captureMode == "all" {
 		return true
 	}
 
-	// Default to "important" mode
 	return true
 }
 
-// InitConfig creates a default config file and necessary directories
 func InitConfig() error {
 	configDir, err := ConfigDir()
 	if err != nil {
@@ -292,7 +255,6 @@ func InitConfig() error {
 		return err
 	}
 
-	// Create directories
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("create config directory: %w", err)
 	}
@@ -301,7 +263,6 @@ func InitConfig() error {
 		return fmt.Errorf("create data directory: %w", err)
 	}
 
-	// Create default config
 	configPath, err := ConfigPath()
 	if err != nil {
 		return err
