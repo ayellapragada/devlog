@@ -74,10 +74,10 @@ POST /api/v1/summarize    # force summarization
 
 Event Sources:
 
-- git hooks
-- shell hooks
+- git hooks ✅
+- shell hooks ✅
 - wisprflow
-- git scans / polling
+- (Future) GitHub merged PR polling
 
 The goal here is to keep this modular and extensible.
 
@@ -148,7 +148,13 @@ llm:
   model: "claude-3.5-sonnet"
   api_key_env: "ANTHROPIC_API_KEY"
 
-shell_capture_mode: "important"   # or "all"
+shell:
+  enabled: true
+  capture_mode: "important"   # or "all"
+  ignore_list:
+    - "ls"
+    - "cd"
+    - "pwd"
 ```
 
 
@@ -177,8 +183,8 @@ Potential code structure:
 Potential roadmap:
 
 ```
-v0.1 – scaffold + HTTP ingest + SQLite
-v0.2 – git hooks + shell hooks + repo scanning
+v0.1 – scaffold + HTTP ingest + SQLite ✅
+v0.2 – git hooks + shell hooks ✅
 v0.3 – session grouping
 v0.4 – LLM summaries + Obsidian writing
 v0.5 – daily summary

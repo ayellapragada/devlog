@@ -39,7 +39,7 @@ func New(cfg *config.Config, store *storage.Storage) *Daemon {
 
 // Start starts the daemon HTTP server
 func (d *Daemon) Start() error {
-	apiServer := api.NewServer(d.storage, d.sessionManager)
+	apiServer := api.NewServer(d.storage, d.sessionManager, d.config)
 	mux := apiServer.SetupRoutes()
 
 	addr := fmt.Sprintf("127.0.0.1:%d", d.config.HTTP.Port)

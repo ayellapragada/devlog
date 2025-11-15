@@ -2,13 +2,15 @@
 
 A local development journaling system that automatically captures development activity and stores it for future summarization into Obsidian notes.
 
-## Features (v0.1)
+## Features (v0.1-v0.2)
 
 - **Background Daemon**: Runs locally, accepts events via HTTP API
 - **SQLite Storage**: Persistent event storage with WAL mode for concurrent writes
 - **Git Hook Integration**: Automatically captures commits via post-commit hooks
+- **Shell Hook Integration**: Automatically captures shell commands with exit codes and duration
 - **CLI**: Manage daemon, ingest events, and view recent activity
 - **Type-Safe Events**: Validated event model with multiple source types
+- **Smart Filtering**: Configurable command filtering to capture only important events
 
 ## Installation
 
@@ -62,8 +64,35 @@ Install the post-commit hook globally for all repositories on your system:
 
 After installation, every commit in **any repository** will be automatically captured by devlog.
 
+### Install Shell Hooks
+
+Install shell hooks to automatically capture shell commands:
+
+```bash
+./hooks/install-shell.sh
+```
+
+This will add devlog integration to your `~/.bashrc` or `~/.zshrc`. After installation:
+- All shell commands are captured (filtered based on your config)
+- Exit codes and command duration are tracked
+- Commands are linked to git repos when run inside them
+
+Configure shell capture in `~/.config/devlog/config.yaml`:
+
+```yaml
+shell:
+  enabled: true
+  capture_mode: important  # or "all"
+  ignore_list:
+    - ls
+    - cd
+    - pwd
+    - echo
+```
+
 ### Manual Event Ingestion
 
+**Git commit:**
 ```bash
 ./bin/devlog ingest git-commit \
   --repo=/path/to/repo \
@@ -71,6 +100,15 @@ After installation, every commit in **any repository** will be automatically cap
   --hash=abc123 \
   --message="Fix bug" \
   --author="Your Name"
+```
+
+**Shell command:**
+```bash
+./bin/devlog ingest shell-command \
+  --command="npm test" \
+  --exit-code=0 \
+  --workdir=/path/to/project \
+  --duration=1523
 ```
 
 ### Direct API Access
@@ -153,7 +191,7 @@ Test coverage:
 ## Roadmap
 
 - [x] v0.1 - Basic daemon, HTTP API, SQLite, git hooks
-- [ ] v0.2 - Shell hooks, repo scanning
+- [x] v0.2 - Shell hooks
 - [ ] v0.3 - Session grouping
 - [ ] v0.4 - LLM summarization, Obsidian writing
 - [ ] v0.5 - Daily summaries
@@ -167,6 +205,16 @@ Edit `~/.config/devlog/config.yaml`:
 obsidian_path: ~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Main/Periodic
 http:
   port: 8573
+shell:
+  enabled: true
+  capture_mode: important  # "important" or "all"
+  ignore_list:
+    - ls
+    - cd
+    - pwd
+    - echo
+    - cat
+    - clear
 ```
 
 ## License

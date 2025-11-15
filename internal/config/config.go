@@ -10,9 +10,10 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	ObsidianPath      string     `yaml:"obsidian_path"`
-	HTTP              HTTPConfig `yaml:"http"`
-	SessionGapMinutes int        `yaml:"session_gap_minutes,omitempty"`
+	ObsidianPath      string      `yaml:"obsidian_path"`
+	HTTP              HTTPConfig  `yaml:"http"`
+	SessionGapMinutes int         `yaml:"session_gap_minutes,omitempty"`
+	Shell             ShellConfig `yaml:"shell,omitempty"`
 }
 
 // HTTPConfig contains HTTP server settings
@@ -20,11 +21,26 @@ type HTTPConfig struct {
 	Port int `yaml:"port"`
 }
 
+// ShellConfig contains shell hook settings
+type ShellConfig struct {
+	Enabled     bool     `yaml:"enabled"`
+	CaptureMode string   `yaml:"capture_mode,omitempty"` // "all" or "important" (default)
+	IgnoreList  []string `yaml:"ignore_list,omitempty"`  // Commands to ignore (e.g., "ls", "cd")
+}
+
 // DefaultConfig returns a config with sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
 		HTTP: HTTPConfig{
 			Port: 8573,
+		},
+		Shell: ShellConfig{
+			Enabled:     true,
+			CaptureMode: "important",
+			IgnoreList: []string{
+				"ls", "cd", "pwd", "echo", "cat", "clear",
+				"exit", "history", "which", "type", "alias",
+			},
 		},
 	}
 }
@@ -111,7 +127,52 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("http port must be between 1 and 65535")
 	}
 
+	// Validate shell config
+	if c.Shell.CaptureMode != "" && c.Shell.CaptureMode != "all" && c.Shell.CaptureMode != "important" {
+		return fmt.Errorf("shell.capture_mode must be 'all' or 'important'")
+	}
+
 	return nil
+}
+
+// ShouldCaptureCommand checks if a shell command should be captured
+func (c *Config) ShouldCaptureCommand(command string) bool {
+	// If shell hooks are disabled, don't capture
+	if !c.Shell.Enabled {
+		return false
+	}
+
+	// Extract the base command (first word)
+	baseCmd := command
+	for i, ch := range command {
+		if ch == ' ' || ch == '\t' {
+			baseCmd = command[:i]
+			break
+		}
+	}
+
+	// If capture mode is "all", capture everything except ignored commands
+	if c.Shell.CaptureMode == "all" {
+		// Check ignore list
+		for _, ignored := range c.Shell.IgnoreList {
+			if baseCmd == ignored {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Default "important" mode - filter out common navigation/viewing commands
+	// Always check ignore list first
+	for _, ignored := range c.Shell.IgnoreList {
+		if baseCmd == ignored {
+			return false
+		}
+	}
+
+	// In "important" mode, only capture commands that are likely meaningful
+	// (build tools, git commands, package managers, etc.)
+	return true // For now, let ignore list handle filtering
 }
 
 // InitConfig creates a default config file and necessary directories

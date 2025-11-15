@@ -65,6 +65,7 @@ func printUsage() {
 	fmt.Println("  devlog daemon stop                   Stop the daemon")
 	fmt.Println("  devlog daemon status                 Check daemon status")
 	fmt.Println("  devlog ingest git-commit [flags]     Ingest a git commit event")
+	fmt.Println("  devlog ingest shell-command [flags]  Ingest a shell command event")
 	fmt.Println("  devlog flush                         Process queued events")
 	fmt.Println("  devlog status                        Show recent events")
 	fmt.Println("  devlog session create --events <ids> Create session from event IDs")
@@ -196,7 +197,9 @@ func daemonStatus() error {
 
 func ingestCommand() error {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: devlog ingest git-commit [flags]")
+		fmt.Println("Usage:")
+		fmt.Println("  devlog ingest git-commit [flags]")
+		fmt.Println("  devlog ingest shell-command [flags]")
 		return fmt.Errorf("missing ingest subcommand")
 	}
 
@@ -205,6 +208,8 @@ func ingestCommand() error {
 	switch subcommand {
 	case "git-commit":
 		return ingestGitCommit()
+	case "shell-command":
+		return ingestShellCommand()
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown ingest subcommand: %s\n", subcommand)
 		return fmt.Errorf("unknown ingest subcommand: %s", subcommand)
@@ -239,6 +244,57 @@ func ingestGitCommit() error {
 
 	// Send to daemon
 	return sendEvent(event)
+}
+
+func ingestShellCommand() error {
+	fs := flag.NewFlagSet("shell-command", flag.ExitOnError)
+	command := fs.String("command", "", "The shell command")
+	exitCode := fs.Int("exit-code", 0, "Command exit code")
+	workdir := fs.String("workdir", "", "Working directory")
+	duration := fs.Int64("duration", 0, "Command duration in milliseconds")
+
+	fs.Parse(os.Args[3:])
+
+	if *command == "" {
+		return fmt.Errorf("--command is required")
+	}
+
+	// Create event
+	event := events.NewEvent(events.SourceShell, events.TypeCommand)
+	event.Payload["command"] = *command
+	event.Payload["exit_code"] = *exitCode
+
+	if *workdir != "" {
+		event.Payload["workdir"] = *workdir
+		// Check if workdir is a git repo
+		if repoPath, err := findGitRepo(*workdir); err == nil {
+			event.Repo = repoPath
+		}
+	}
+
+	if *duration > 0 {
+		event.Payload["duration_ms"] = *duration
+	}
+
+	// Send to daemon
+	return sendEvent(event)
+}
+
+func findGitRepo(path string) (string, error) {
+	// This is a simple helper - in production you might want to use git commands
+	current := path
+	for {
+		gitPath := filepath.Join(current, ".git")
+		if _, err := os.Stat(gitPath); err == nil {
+			return current, nil
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", fmt.Errorf("not a git repository")
+		}
+		current = parent
+	}
 }
 
 func sendEvent(event *events.Event) error {
@@ -325,31 +381,7 @@ func statusCommand() error {
 	fmt.Printf("Recent events (showing last %d):\n\n", len(recentEvents))
 
 	for _, event := range recentEvents {
-		// Parse timestamp
-		ts, _ := time.Parse(time.RFC3339, event.Timestamp)
-		fmt.Printf("[%s] ", ts.Format("2006-01-02 15:04:05"))
-
-		// Format based on event type
-		switch event.Type {
-		case "commit":
-			formatCommitEvent(event)
-		case "note":
-			formatNoteEvent(event)
-		case "merge":
-			formatMergeEvent(event)
-		case "command":
-			formatCommandEvent(event)
-		case "pr_merged":
-			formatPREvent(event)
-		default:
-			// Fallback for unknown types
-			fmt.Printf("%s/%s", event.Source, event.Type)
-			if event.Repo != "" {
-				fmt.Printf(" repo=%s", filepath.Base(event.Repo))
-			}
-		}
-
-		fmt.Println()
+		formatEvent(event)
 	}
 
 	// Show total count
@@ -359,88 +391,218 @@ func statusCommand() error {
 	return nil
 }
 
-func formatCommitEvent(event *events.Event) {
-	fmt.Printf("Git commit")
-	if event.Repo != "" {
-		fmt.Printf(" in %s", filepath.Base(event.Repo))
+// formatEvent formats an event for display in a consistent, scannable format
+// Format: [TIMESTAMP] (type) folder: description [metadata]
+func formatEvent(event *events.Event) {
+	// Parse and format timestamp
+	ts, _ := time.Parse(time.RFC3339, event.Timestamp)
+	fmt.Printf("[%s] ", ts.Format("2006-01-02 15:04:05"))
+
+	// Event type tag
+	typeTag := getTypeTag(event)
+	fmt.Printf("(%s) ", typeTag)
+
+	// Folder/repo name
+	folder := getFolder(event)
+	if folder != "" {
+		fmt.Printf("%s: ", folder)
 	}
+
+	// Main content
+	switch event.Type {
+	case "commit":
+		formatCommitContent(event)
+	case "merge":
+		formatMergeContent(event)
+	case "command":
+		formatCommandContent(event)
+	case "note":
+		formatNoteContent(event)
+	case "pr_merged":
+		formatPRContent(event)
+	default:
+		fmt.Printf("%s/%s", event.Source, event.Type)
+	}
+
+	fmt.Println()
+}
+
+// getTypeTag returns a short type tag for the event
+func getTypeTag(event *events.Event) string {
+	switch event.Type {
+	case "commit":
+		return "git"
+	case "merge":
+		return "git"
+	case "command":
+		return "shell"
+	case "note":
+		return "note"
+	case "pr_merged":
+		return "github"
+	default:
+		return event.Type
+	}
+}
+
+// getFolder returns the folder/repo name for display
+func getFolder(event *events.Event) string {
+	if event.Repo != "" {
+		return filepath.Base(event.Repo)
+	}
+	// For shell commands without repo, try to get from workdir
+	if event.Type == "command" {
+		if workdir, ok := event.Payload["workdir"].(string); ok {
+			return filepath.Base(workdir)
+		}
+	}
+	return ""
+}
+
+// formatCommitContent formats commit event content
+func formatCommitContent(event *events.Event) {
+	// Get commit message
+	message := ""
+	if msg, ok := event.Payload["message"].(string); ok {
+		// First line only
+		if idx := bytes.IndexByte([]byte(msg), '\n'); idx != -1 {
+			message = msg[:idx]
+		} else {
+			message = msg
+		}
+		// Truncate if too long
+		if len(message) > 60 {
+			message = message[:60] + "..."
+		}
+	}
+
+	fmt.Printf("%s", message)
+
+	// Add metadata: [branch@hash]
+	var metadata []string
 	if event.Branch != "" {
-		fmt.Printf(" [%s]", event.Branch)
+		metadata = append(metadata, event.Branch)
 	}
 	if hash, ok := event.Payload["hash"].(string); ok {
 		if len(hash) > 7 {
 			hash = hash[:7]
 		}
-		fmt.Printf(" (%s)", hash)
-	}
-	if message, ok := event.Payload["message"].(string); ok {
-		// Show first line only
-		if idx := bytes.IndexByte([]byte(message), '\n'); idx != -1 {
-			message = message[:idx]
+		if len(metadata) > 0 {
+			fmt.Printf(" [%s@%s]", metadata[0], hash)
+		} else {
+			fmt.Printf(" [%s]", hash)
 		}
-		if len(message) > 60 {
-			message = message[:60] + "..."
-		}
-		fmt.Printf(": %s", message)
+	} else if len(metadata) > 0 {
+		fmt.Printf(" [%s]", metadata[0])
 	}
 }
 
-func formatNoteEvent(event *events.Event) {
-	fmt.Printf("Note")
-	if text, ok := event.Payload["text"].(string); ok {
-		// Show first line only
-		if idx := bytes.IndexByte([]byte(text), '\n'); idx != -1 {
-			text = text[:idx]
+// formatMergeContent formats merge event content
+func formatMergeContent(event *events.Event) {
+	source := ""
+	if src, ok := event.Payload["source_branch"].(string); ok {
+		source = src
+	}
+
+	target := event.Branch
+	if target == "" {
+		target = "?"
+	}
+
+	if source != "" {
+		fmt.Printf("merge %s → %s", source, target)
+	} else {
+		fmt.Printf("merge → %s", target)
+	}
+}
+
+// formatCommandContent formats shell command event content
+func formatCommandContent(event *events.Event) {
+	cmd := ""
+	if c, ok := event.Payload["command"].(string); ok {
+		cmd = c
+		// Truncate if too long
+		if len(cmd) > 70 {
+			cmd = cmd[:70] + "..."
 		}
+	}
+
+	fmt.Printf("%s", cmd)
+
+	// Add exit code if non-zero
+	if exitCode, ok := event.Payload["exit_code"].(float64); ok && exitCode != 0 {
+		fmt.Printf(" [exit:%d]", int(exitCode))
+	} else if exitCode, ok := event.Payload["exit_code"].(int); ok && exitCode != 0 {
+		fmt.Printf(" [exit:%d]", exitCode)
+	}
+
+	// Add duration if available
+	if duration, ok := event.Payload["duration_ms"].(float64); ok && duration > 0 {
+		fmt.Printf(" [%s]", formatDurationMs(int64(duration)))
+	} else if duration, ok := event.Payload["duration_ms"].(int64); ok && duration > 0 {
+		fmt.Printf(" [%s]", formatDurationMs(duration))
+	}
+}
+
+// formatNoteContent formats note event content
+func formatNoteContent(event *events.Event) {
+	text := ""
+	if t, ok := event.Payload["text"].(string); ok {
+		// First line only
+		if idx := bytes.IndexByte([]byte(t), '\n'); idx != -1 {
+			text = t[:idx]
+		} else {
+			text = t
+		}
+		// Truncate if too long
 		if len(text) > 80 {
 			text = text[:80] + "..."
 		}
-		fmt.Printf(": %s", text)
+	}
+
+	if text != "" {
+		fmt.Printf("%s", text)
 	} else {
-		fmt.Printf(" (empty)")
+		fmt.Printf("(empty)")
 	}
 }
 
-func formatMergeEvent(event *events.Event) {
-	fmt.Printf("Git merge")
-	if event.Repo != "" {
-		fmt.Printf(" in %s", filepath.Base(event.Repo))
-	}
-	if event.Branch != "" {
-		fmt.Printf(" into %s", event.Branch)
-	}
-	if source, ok := event.Payload["source_branch"].(string); ok {
-		fmt.Printf(" from %s", source)
-	}
-}
-
-func formatCommandEvent(event *events.Event) {
-	fmt.Printf("Shell command")
-	if cmd, ok := event.Payload["command"].(string); ok {
-		if len(cmd) > 80 {
-			cmd = cmd[:80] + "..."
-		}
-		fmt.Printf(": %s", cmd)
-	}
-	if event.Repo != "" {
-		fmt.Printf(" (in %s)", filepath.Base(event.Repo))
-	}
-}
-
-func formatPREvent(event *events.Event) {
-	fmt.Printf("GitHub PR merged")
-	if title, ok := event.Payload["title"].(string); ok {
+// formatPRContent formats PR merged event content
+func formatPRContent(event *events.Event) {
+	title := ""
+	if t, ok := event.Payload["title"].(string); ok {
+		title = t
 		if len(title) > 60 {
 			title = title[:60] + "..."
 		}
-		fmt.Printf(": %s", title)
 	}
-	if prNum, ok := event.Payload["pr_number"].(float64); ok {
-		fmt.Printf(" (#%.0f)", prNum)
+
+	prNum := ""
+	if num, ok := event.Payload["pr_number"].(float64); ok {
+		prNum = fmt.Sprintf("#%.0f", num)
 	}
-	if event.Repo != "" {
-		fmt.Printf(" in %s", filepath.Base(event.Repo))
+
+	if prNum != "" && title != "" {
+		fmt.Printf("%s: %s", prNum, title)
+	} else if prNum != "" {
+		fmt.Printf("%s", prNum)
+	} else if title != "" {
+		fmt.Printf("%s", title)
 	}
+}
+
+// formatDurationMs formats milliseconds into a human-readable duration
+func formatDurationMs(ms int64) string {
+	if ms < 1000 {
+		return fmt.Sprintf("%dms", ms)
+	}
+	seconds := ms / 1000
+	if seconds < 60 {
+		return fmt.Sprintf("%.1fs", float64(ms)/1000)
+	}
+	minutes := seconds / 60
+	seconds = seconds % 60
+	return fmt.Sprintf("%dm%ds", minutes, seconds)
 }
 
 func flushCommand() error {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"devlog/internal/config"
 	"devlog/internal/events"
 	"devlog/internal/session"
 	"devlog/internal/storage"
@@ -27,7 +28,8 @@ func setupTestServer(t *testing.T) (*Server, *storage.Storage) {
 	}
 
 	sessionManager := session.NewManager(store)
-	server := NewServer(store, sessionManager)
+	cfg := config.DefaultConfig()
+	server := NewServer(store, sessionManager, cfg)
 	return server, store
 }
 

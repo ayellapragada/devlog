@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"devlog/internal/config"
 	"devlog/internal/events"
 	"devlog/internal/session"
 	"devlog/internal/storage"
@@ -16,14 +17,16 @@ import (
 type Server struct {
 	storage        *storage.Storage
 	sessionManager *session.Manager
+	config         *config.Config
 	startTime      time.Time
 }
 
 // NewServer creates a new API server
-func NewServer(storage *storage.Storage, sessionManager *session.Manager) *Server {
+func NewServer(storage *storage.Storage, sessionManager *session.Manager, cfg *config.Config) *Server {
 	return &Server{
 		storage:        storage,
 		sessionManager: sessionManager,
+		config:         cfg,
 		startTime:      time.Now(),
 	}
 }
@@ -51,6 +54,20 @@ func (s *Server) IngestHandler(w http.ResponseWriter, r *http.Request) {
 	if err := event.Validate(); err != nil {
 		respondError(w, fmt.Sprintf("Invalid event: %v", err), http.StatusBadRequest)
 		return
+	}
+
+	// Filter shell commands based on config
+	if event.Source == events.SourceShell && event.Type == events.TypeCommand {
+		if command, ok := event.Payload["command"].(string); ok {
+			if !s.config.ShouldCaptureCommand(command) {
+				// Silently drop filtered command - return success
+				respondJSON(w, map[string]interface{}{
+					"ok":       true,
+					"filtered": true,
+				}, http.StatusOK)
+				return
+			}
+		}
 	}
 
 	if err := s.storage.InsertEvent(event); err != nil {
