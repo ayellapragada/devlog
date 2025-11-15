@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -124,6 +125,10 @@ func (s *Storage) Close() error {
 }
 
 func (s *Storage) InsertEvent(event *events.Event) error {
+	return s.InsertEventContext(context.Background(), event)
+}
+
+func (s *Storage) InsertEventContext(ctx context.Context, event *events.Event) error {
 	if err := event.Validate(); err != nil {
 		return fmt.Errorf("invalid event: %w", err)
 	}
@@ -138,7 +143,11 @@ func (s *Storage) InsertEvent(event *events.Event) error {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err = s.db.Exec(
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	_, err = s.db.ExecContext(
+		ctx,
 		query,
 		event.ID,
 		event.Timestamp,
@@ -158,13 +167,20 @@ func (s *Storage) InsertEvent(event *events.Event) error {
 }
 
 func (s *Storage) GetEvent(id string) (*events.Event, error) {
+	return s.GetEventContext(context.Background(), id)
+}
+
+func (s *Storage) GetEventContext(ctx context.Context, id string) (*events.Event, error) {
 	query := `
 		SELECT id, timestamp, source, type, repo, branch, payload
 		FROM events
 		WHERE id = ?
 	`
 
-	event, err := s.scanEvent(s.db.QueryRow(query, id))
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	event, err := s.scanEvent(s.db.QueryRowContext(ctx, query, id))
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("event not found: %s", id)
 	}
@@ -176,6 +192,10 @@ func (s *Storage) GetEvent(id string) (*events.Event, error) {
 }
 
 func (s *Storage) ListEvents(limit int, source string) ([]*events.Event, error) {
+	return s.ListEventsContext(context.Background(), limit, source)
+}
+
+func (s *Storage) ListEventsContext(ctx context.Context, limit int, source string) ([]*events.Event, error) {
 	query := `
 		SELECT id, timestamp, source, type, repo, branch, payload
 		FROM events
@@ -196,7 +216,10 @@ func (s *Storage) ListEvents(limit int, source string) ([]*events.Event, error) 
 		args = append(args, limit)
 	}
 
-	rows, err := s.db.Query(query, args...)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
 	}
@@ -220,8 +243,15 @@ func (s *Storage) ListEvents(limit int, source string) ([]*events.Event, error) 
 }
 
 func (s *Storage) Count() (int, error) {
+	return s.CountContext(context.Background())
+}
+
+func (s *Storage) CountContext(ctx context.Context) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM events").Scan(&count)
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM events").Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count events: %w", err)
 	}

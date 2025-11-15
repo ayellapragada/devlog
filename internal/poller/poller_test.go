@@ -1,6 +1,7 @@
 package poller
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -17,6 +18,10 @@ type mockStorage struct {
 }
 
 func (m *mockStorage) InsertEvent(event *events.Event) error {
+	return m.InsertEventContext(context.Background(), event)
+}
+
+func (m *mockStorage) InsertEventContext(ctx context.Context, event *events.Event) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -53,7 +58,7 @@ func (m *mockPoller) PollInterval() time.Duration {
 	return m.interval
 }
 
-func (m *mockPoller) Poll() ([]*events.Event, error) {
+func (m *mockPoller) Poll(ctx context.Context) ([]*events.Event, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -152,7 +157,7 @@ func TestManagerDoPoll(t *testing.T) {
 		eventsToReturn: []*events.Event{event1, event2},
 	}
 
-	manager.doPoll(poller)
+	manager.doPoll(context.Background(), poller)
 
 	insertedEvents := storage.getInsertedEvents()
 	if len(insertedEvents) != 2 {
@@ -181,7 +186,7 @@ func TestManagerDoPollWithStorageError(t *testing.T) {
 		eventsToReturn: []*events.Event{event},
 	}
 
-	manager.doPoll(poller)
+	manager.doPoll(context.Background(), poller)
 
 	insertedEvents := storage.getInsertedEvents()
 	if len(insertedEvents) != 0 {
@@ -200,7 +205,7 @@ func TestManagerDoPollWithEmptyEvents(t *testing.T) {
 		eventsToReturn: []*events.Event{},
 	}
 
-	manager.doPoll(poller)
+	manager.doPoll(context.Background(), poller)
 
 	insertedEvents := storage.getInsertedEvents()
 	if len(insertedEvents) != 0 {

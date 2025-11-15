@@ -1,6 +1,7 @@
 package wisprflow
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestPollerPollWithNonexistentDB(t *testing.T) {
 
 	poller := NewPoller(dbPath, dataDir, time.Second, 0)
 
-	_, err := poller.Poll()
+	_, err := poller.Poll(context.Background())
 	if err == nil {
 		t.Error("Expected error when polling nonexistent database")
 	}

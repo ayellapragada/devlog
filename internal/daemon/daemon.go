@@ -48,6 +48,9 @@ func New(cfg *config.Config, store *storage.Storage) *Daemon {
 }
 
 func (d *Daemon) Start() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	apiServer := api.NewServer(d.storage, d.sessionManager, d.config)
 	mux := apiServer.SetupRoutes()
 
@@ -66,7 +69,7 @@ func (d *Daemon) Start() error {
 	}
 
 	d.setupPollers()
-	d.pollerManager.Start()
+	d.pollerManager.StartWithContext(ctx)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -85,9 +88,11 @@ func (d *Daemon) Start() error {
 	select {
 	case <-sigChan:
 		d.logger.Info("shutdown signal received")
+		cancel()
 		return d.Shutdown()
 	case err := <-errChan:
 		d.logger.Error("server error", slog.String("error", err.Error()))
+		cancel()
 		d.removePIDFile()
 		return fmt.Errorf("server error: %w", err)
 	}

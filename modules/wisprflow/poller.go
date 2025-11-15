@@ -1,6 +1,7 @@
 package wisprflow
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -33,13 +34,19 @@ func (p *Poller) PollInterval() time.Duration {
 	return p.pollInterval
 }
 
-func (p *Poller) Poll() ([]*events.Event, error) {
+func (p *Poller) Poll(ctx context.Context) ([]*events.Event, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	lastPoll, err := LoadLastPollTime(p.dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("load last poll time: %w", err)
 	}
 
-	entries, err := PollDatabase(p.dbPath, lastPoll)
+	entries, err := PollDatabaseContext(ctx, p.dbPath, lastPoll)
 	if err != nil {
 		return nil, fmt.Errorf("poll database: %w", err)
 	}

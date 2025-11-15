@@ -1,6 +1,7 @@
 package wisprflow
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -149,6 +150,10 @@ type HistoryEntry struct {
 }
 
 func PollDatabase(dbPath string, since time.Time) ([]HistoryEntry, error) {
+	return PollDatabaseContext(context.Background(), dbPath, since)
+}
+
+func PollDatabaseContext(ctx context.Context, dbPath string, since time.Time) ([]HistoryEntry, error) {
 	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?mode=ro", dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -174,7 +179,7 @@ func PollDatabase(dbPath string, since time.Time) ([]HistoryEntry, error) {
 		ORDER BY timestamp ASC
 	`
 
-	rows, err := db.Query(query, since.Format("2006-01-02 15:04:05.999 -07:00"))
+	rows, err := db.QueryContext(ctx, query, since.Format("2006-01-02 15:04:05.999 -07:00"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to query database: %w", err)
 	}
