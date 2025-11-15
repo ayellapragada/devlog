@@ -117,6 +117,8 @@ func (d *Daemon) processQueue() error {
 			continue
 		}
 
+		fmt.Printf("Ingested queued event: source=%s type=%s id=%s\n", event.Source, event.Type, event.ID)
+
 		if err := q.Remove(event.ID); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to remove event %s from queue: %v\n", event.ID, err)
 		} else {
@@ -226,6 +228,7 @@ func (d *Daemon) doWisprFlowPoll(dbPath string, dataDir string, minWords float64
 				fmt.Fprintf(os.Stderr, "Warning: failed to store wisprflow event: %v\n", err)
 			}
 		} else {
+			fmt.Printf("Ingested event: source=%s type=%s id=%s\n", event.Source, event.Type, event.ID)
 			storedCount++
 		}
 	}

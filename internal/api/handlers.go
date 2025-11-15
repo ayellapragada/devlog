@@ -70,6 +70,8 @@ func (s *Server) IngestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("Ingested event: source=%s type=%s id=%s\n", event.Source, event.Type, event.ID)
+
 	respondJSON(w, map[string]interface{}{
 		"ok":       true,
 		"event_id": event.ID,
