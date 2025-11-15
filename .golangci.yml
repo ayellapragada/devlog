@@ -1,0 +1,41 @@
+version: 2
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  # Enable default linters + a few extras
+  enable:
+    - govet         # Reports suspicious constructs (enabled by default)
+    - ineffassign   # Detect ineffectual assignments (enabled by default)
+    - staticcheck   # Advanced static analysis (enabled by default)
+    - unused        # Check for unused code (enabled by default)
+    - misspell      # Find misspelled words
+    - gocritic      # Additional checks
+
+  disable:
+    - errcheck      # Too noisy for deferred Close() calls
+    - gosec         # Too noisy for local-only daemon
+
+linters-settings:
+  errcheck:
+    check-blank: false  # Allow ignoring errors from Close, etc.
+    check-type-assertions: false
+    # Ignore errors from common cleanup functions
+    exclude-functions:
+      - (io.Closer).Close
+      - (*database/sql.Rows).Close
+      - (*database/sql.DB).Close
+      - (*net/http.Response.Body).Close
+
+issues:
+  exclude-rules:
+    # Exclude errcheck from test files
+    - path: _test\.go
+      linters:
+        - errcheck
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
