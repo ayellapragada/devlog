@@ -1,31 +1,43 @@
 #!/bin/bash
-# Install devlog git hooks into a repository
+# Install devlog git hooks globally for all repositories
 
 set -e
 
-if [ $# -eq 0 ]; then
-    echo "Usage: $0 <path-to-git-repo>"
-    echo
-    echo "Example:"
-    echo "  $0 ~/dev/myproject"
-    echo
-    echo "This will install the devlog post-commit hook into the specified repository."
-    exit 1
-fi
+echo "Installing devlog git hooks globally..."
+echo
 
-REPO_PATH="$1"
+# Create global hooks directory
+HOOKS_DIR="$HOME/.config/git/hooks"
+mkdir -p "$HOOKS_DIR"
 
-# Check if it's a git repository
-if [ ! -d "$REPO_PATH/.git" ]; then
-    echo "Error: $REPO_PATH is not a git repository"
-    exit 1
-fi
-
-# Get the hooks directory
-HOOKS_DIR="$REPO_PATH/.git/hooks"
-
-# Copy post-commit hook
+# Get the source hook path
 HOOK_SOURCE="$(cd "$(dirname "$0")" && pwd)/post-commit"
+
+if [ ! -f "$HOOK_SOURCE" ]; then
+    echo "Error: post-commit hook not found at $HOOK_SOURCE"
+    exit 1
+fi
+
+# Check if global hooks are already configured
+CURRENT_HOOKS_PATH=$(git config --global --get core.hooksPath || echo "")
+
+if [ -n "$CURRENT_HOOKS_PATH" ] && [ "$CURRENT_HOOKS_PATH" != "$HOOKS_DIR" ]; then
+    echo "Warning: Git is already configured to use a different global hooks directory:"
+    echo "  $CURRENT_HOOKS_PATH"
+    echo
+    read -p "Switch to $HOOKS_DIR? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled"
+        echo
+        echo "To install manually, copy the hook and configure git:"
+        echo "  cp $HOOK_SOURCE $CURRENT_HOOKS_PATH/"
+        echo "  chmod +x $CURRENT_HOOKS_PATH/post-commit"
+        exit 0
+    fi
+fi
+
+# Copy hook
 HOOK_DEST="$HOOKS_DIR/post-commit"
 
 if [ -f "$HOOK_DEST" ]; then
@@ -41,7 +53,13 @@ fi
 cp "$HOOK_SOURCE" "$HOOK_DEST"
 chmod +x "$HOOK_DEST"
 
+# Configure git to use global hooks directory
+git config --global core.hooksPath "$HOOKS_DIR"
+
 echo "✓ Installed post-commit hook to $HOOK_DEST"
+echo "✓ Configured git to use global hooks directory: $HOOKS_DIR"
 echo
-echo "The hook will now capture git commits and send them to devlogd."
-echo "Make sure devlog is in your PATH or update the hook to use an absolute path."
+echo "All git repositories on this system will now send commit events to devlog."
+echo "Make sure:"
+echo "  1. devlog is in your PATH, or"
+echo "  2. Update the hook to use an absolute path to devlog"
