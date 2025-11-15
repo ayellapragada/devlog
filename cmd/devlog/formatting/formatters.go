@@ -42,9 +42,11 @@ func formatCommitContent(event *events.Event) {
 }
 
 func formatMergeContent(event *events.Event) {
-	source := ""
-	if src, ok := event.Payload["source_branch"].(string); ok {
-		source = src
+	mergedBranch := ""
+	if mb, ok := event.Payload["merged_branch"].(string); ok {
+		mergedBranch = mb
+	} else if src, ok := event.Payload["source_branch"].(string); ok {
+		mergedBranch = src
 	}
 
 	target := event.Branch
@@ -52,10 +54,92 @@ func formatMergeContent(event *events.Event) {
 		target = "?"
 	}
 
-	if source != "" {
-		fmt.Printf("merge %s → %s", source, target)
+	if mergedBranch != "" {
+		fmt.Printf("merged %s → %s", mergedBranch, target)
 	} else {
-		fmt.Printf("merge → %s", target)
+		fmt.Printf("merged → %s", target)
+	}
+}
+
+func formatPushContent(event *events.Event) {
+	remote := "origin"
+	if r, ok := event.Payload["remote"].(string); ok && r != "" {
+		remote = r
+	}
+
+	ref := event.Branch
+	if r, ok := event.Payload["ref"].(string); ok && r != "" {
+		ref = r
+	}
+
+	fmt.Printf("pushed to %s/%s", remote, ref)
+}
+
+func formatPullContent(event *events.Event) {
+	remote := "origin"
+	if r, ok := event.Payload["remote"].(string); ok && r != "" {
+		remote = r
+	}
+
+	fmt.Printf("pulled from %s", remote)
+	if event.Branch != "" {
+		fmt.Printf(" [%s]", event.Branch)
+	}
+}
+
+func formatFetchContent(event *events.Event) {
+	remote := "origin"
+	if r, ok := event.Payload["remote"].(string); ok && r != "" {
+		remote = r
+	}
+
+	fmt.Printf("fetched from %s", remote)
+}
+
+func formatCheckoutContent(event *events.Event) {
+	fromBranch := ""
+	if fb, ok := event.Payload["from_branch"].(string); ok {
+		fromBranch = fb
+	}
+
+	toBranch := event.Branch
+	if toBranch == "" {
+		toBranch = "?"
+	}
+
+	if fromBranch != "" {
+		fmt.Printf("switched %s → %s", fromBranch, toBranch)
+	} else {
+		fmt.Printf("switched to %s", toBranch)
+	}
+}
+
+func formatRebaseContent(event *events.Event) {
+	targetBranch := ""
+	if tb, ok := event.Payload["target_branch"].(string); ok {
+		targetBranch = tb
+	}
+
+	if targetBranch != "" {
+		fmt.Printf("rebased onto %s", targetBranch)
+	} else {
+		fmt.Printf("rebased")
+	}
+
+	if event.Branch != "" {
+		fmt.Printf(" [%s]", event.Branch)
+	}
+}
+
+func formatStashContent(event *events.Event) {
+	action := "push"
+	if a, ok := event.Payload["stash_action"].(string); ok && a != "" {
+		action = a
+	}
+
+	fmt.Printf("stash %s", action)
+	if event.Branch != "" {
+		fmt.Printf(" [%s]", event.Branch)
 	}
 }
 

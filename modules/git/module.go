@@ -4,13 +4,16 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"devlog/internal/modules"
 )
 
-var postCommitHook string
+//go:embed hooks/git-wrapper.sh
+var gitWrapperScript string
+
+//go:embed hooks/devlog-git-common.sh
+var gitCommonLib string
 
 type Module struct{}
 
@@ -19,85 +22,66 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) Description() string {
-	return "Capture git commits automatically"
+	return "Capture git operations (commits, pushes, pulls, merges, etc.) automatically"
 }
 
 func (m *Module) Install(ctx *modules.InstallContext) error {
-	ctx.Log("Installing git hooks...")
+	ctx.Log("Installing git command wrapper...")
 
-	hooksDir := filepath.Join(ctx.HomeDir, ".config", "git", "hooks")
-	if err := os.MkdirAll(hooksDir, 0755); err != nil {
-		return fmt.Errorf("create hooks directory: %w", err)
+	binDir := filepath.Join(ctx.HomeDir, ".local", "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return fmt.Errorf("create bin directory: %w", err)
 	}
 
-	cmd := exec.Command("git", "config", "--global", "--get", "core.hooksPath")
-	output, _ := cmd.Output()
-	currentHooksPath := string(output)
-	if len(currentHooksPath) > 0 {
-		currentHooksPath = currentHooksPath[:len(currentHooksPath)-1]
+	commonLibPath := filepath.Join(binDir, "devlog-git-common.sh")
+	if err := os.WriteFile(commonLibPath, []byte(gitCommonLib), 0644); err != nil {
+		return fmt.Errorf("write common library: %w", err)
 	}
 
-	if currentHooksPath != "" && currentHooksPath != hooksDir {
-		if ctx.Interactive {
-			ctx.Log("Warning: Git is already configured to use a different global hooks directory:")
-			ctx.Log("  %s", currentHooksPath)
-			ctx.Log("Devlog will use: %s", hooksDir)
-			ctx.Log("")
-			ctx.Log("You may need to manually copy hooks if you have existing ones.")
-		}
+	wrapperPath := filepath.Join(binDir, "git")
+	if err := os.WriteFile(wrapperPath, []byte(gitWrapperScript), 0755); err != nil {
+		return fmt.Errorf("write git wrapper: %w", err)
 	}
 
-	hookPath := filepath.Join(hooksDir, "post-commit")
-	if err := os.WriteFile(hookPath, []byte(postCommitHook), 0755); err != nil {
-		return fmt.Errorf("write post-commit hook: %w", err)
-	}
-
-	cmd = exec.Command("git", "config", "--global", "core.hooksPath", hooksDir)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("configure git hooks path: %w", err)
-	}
-
-	ctx.Log("✓ Installed post-commit hook to %s", hookPath)
-	ctx.Log("✓ Configured git to use global hooks directory: %s", hooksDir)
+	ctx.Log("✓ Installed shared library to %s", commonLibPath)
+	ctx.Log("✓ Installed git wrapper to %s", wrapperPath)
 	ctx.Log("")
-	ctx.Log("All git repositories on this system will now send commit events to devlog.")
+	ctx.Log("All git operations (commits, pushes, pulls, merges, etc.) will now be tracked.")
+	ctx.Log("")
+	ctx.Log("IMPORTANT: Ensure %s is in your PATH and appears BEFORE /usr/bin", binDir)
+	ctx.Log("Add this to your shell RC file:")
+	ctx.Log("")
+	ctx.Log("  export PATH=\"%s:$PATH\"", binDir)
+	ctx.Log("")
+	ctx.Log("Then restart your shell or run: source ~/.zshrc (or ~/.bashrc)")
 
 	return nil
 }
 
 func (m *Module) Uninstall(ctx *modules.InstallContext) error {
-	ctx.Log("Uninstalling git hooks...")
+	ctx.Log("Uninstalling git wrapper...")
 
-	cmd := exec.Command("git", "config", "--global", "--get", "core.hooksPath")
-	output, _ := cmd.Output()
-	hooksPath := string(output)
-	if len(hooksPath) > 0 {
-		hooksPath = hooksPath[:len(hooksPath)-1]
-	}
+	binDir := filepath.Join(ctx.HomeDir, ".local", "bin")
 
-	if hooksPath == "" {
-		ctx.Log("No global hooks directory configured")
-		return nil
-	}
-
-	hookPath := filepath.Join(hooksPath, "post-commit")
-	if _, err := os.Stat(hookPath); err == nil {
-		content, err := os.ReadFile(hookPath)
-		if err == nil && string(content) == postCommitHook {
-			if err := os.Remove(hookPath); err != nil {
-				return fmt.Errorf("remove post-commit hook: %w", err)
-			}
-			ctx.Log("✓ Removed post-commit hook from %s", hookPath)
-		} else {
-			ctx.Log("Warning: post-commit hook at %s doesn't match devlog's hook, skipping removal", hookPath)
+	commonLibPath := filepath.Join(binDir, "devlog-git-common.sh")
+	if _, err := os.Stat(commonLibPath); err == nil {
+		if err := os.Remove(commonLibPath); err != nil {
+			return fmt.Errorf("remove common library: %w", err)
 		}
+		ctx.Log("✓ Removed shared library from %s", commonLibPath)
 	}
 
-	entries, err := os.ReadDir(hooksPath)
-	if err == nil && len(entries) == 0 {
-		cmd := exec.Command("git", "config", "--global", "--unset", "core.hooksPath")
-		_ = cmd.Run()
-		ctx.Log("✓ Removed git global hooks directory configuration")
+	wrapperPath := filepath.Join(binDir, "git")
+	if _, err := os.Stat(wrapperPath); err == nil {
+		content, err := os.ReadFile(wrapperPath)
+		if err == nil && string(content) == gitWrapperScript {
+			if err := os.Remove(wrapperPath); err != nil {
+				return fmt.Errorf("remove git wrapper: %w", err)
+			}
+			ctx.Log("✓ Removed git wrapper from %s", wrapperPath)
+		} else {
+			ctx.Log("Warning: git wrapper at %s doesn't match devlog's wrapper, skipping removal", wrapperPath)
+		}
 	}
 
 	return nil

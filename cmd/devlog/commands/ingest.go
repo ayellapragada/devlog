@@ -17,7 +17,7 @@ import (
 func Ingest() error {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage:")
-		fmt.Println("  devlog ingest git-commit [flags]")
+		fmt.Println("  devlog ingest git-event [flags]")
 		fmt.Println("  devlog ingest shell-command [flags]")
 		return fmt.Errorf("missing ingest subcommand")
 	}
@@ -25,8 +25,8 @@ func Ingest() error {
 	subcommand := os.Args[2]
 
 	switch subcommand {
-	case "git-commit":
-		return ingestGitCommit()
+	case "git-event":
+		return ingestGitEvent()
 	case "shell-command":
 		return ingestShellCommand()
 	default:
@@ -35,29 +35,84 @@ func Ingest() error {
 	}
 }
 
-func ingestGitCommit() error {
-	fs := flag.NewFlagSet("git-commit", flag.ExitOnError)
+func ingestGitEvent() error {
+	fs := flag.NewFlagSet("git-event", flag.ExitOnError)
 	repo := fs.String("repo", "", "Repository path")
 	branch := fs.String("branch", "", "Branch name")
-	hash := fs.String("hash", "", "Commit hash")
-	message := fs.String("message", "", "Commit message")
-	author := fs.String("author", "", "Commit author")
+	eventType := fs.String("type", "", "Event type (commit, push, pull, fetch, merge, rebase, checkout, stash)")
+
+	hash := fs.String("hash", "", "Commit hash (for commit)")
+	message := fs.String("message", "", "Commit message (for commit)")
+	author := fs.String("author", "", "Commit author (for commit)")
+
+	remote := fs.String("remote", "", "Remote name (for push/pull/fetch)")
+	ref := fs.String("ref", "", "Reference (for push)")
+	mergedBranch := fs.String("merged-branch", "", "Merged branch name (for merge)")
+	targetBranch := fs.String("target-branch", "", "Target branch (for rebase)")
+	fromBranch := fs.String("from-branch", "", "Previous branch (for checkout)")
+	stashAction := fs.String("stash-action", "", "Stash action (for stash)")
 
 	fs.Parse(os.Args[3:])
 
-	if *repo == "" || *branch == "" || *hash == "" {
-		return fmt.Errorf("--repo, --branch, and --hash are required")
+	if *repo == "" || *branch == "" || *eventType == "" {
+		return fmt.Errorf("--repo, --branch, and --type are required")
 	}
 
-	event := events.NewEvent(events.SourceGit, events.TypeCommit)
+	var typeConstant string
+	switch *eventType {
+	case "commit":
+		typeConstant = events.TypeCommit
+		if *hash == "" {
+			return fmt.Errorf("--hash is required for commit events")
+		}
+	case "push":
+		typeConstant = events.TypePush
+	case "pull":
+		typeConstant = events.TypePull
+	case "fetch":
+		typeConstant = events.TypeFetch
+	case "merge":
+		typeConstant = events.TypeMerge
+	case "rebase":
+		typeConstant = events.TypeRebase
+	case "checkout":
+		typeConstant = events.TypeCheckout
+	case "stash":
+		typeConstant = events.TypeStash
+	default:
+		return fmt.Errorf("unknown event type: %s", *eventType)
+	}
+
+	event := events.NewEvent(events.SourceGit, typeConstant)
 	event.Repo = *repo
 	event.Branch = *branch
-	event.Payload["hash"] = *hash
+
+	if *hash != "" {
+		event.Payload["hash"] = *hash
+	}
 	if *message != "" {
 		event.Payload["message"] = *message
 	}
 	if *author != "" {
 		event.Payload["author"] = *author
+	}
+	if *remote != "" {
+		event.Payload["remote"] = *remote
+	}
+	if *ref != "" {
+		event.Payload["ref"] = *ref
+	}
+	if *mergedBranch != "" {
+		event.Payload["merged_branch"] = *mergedBranch
+	}
+	if *targetBranch != "" {
+		event.Payload["target_branch"] = *targetBranch
+	}
+	if *fromBranch != "" {
+		event.Payload["from_branch"] = *fromBranch
+	}
+	if *stashAction != "" {
+		event.Payload["stash_action"] = *stashAction
 	}
 
 	return sendEvent(event)

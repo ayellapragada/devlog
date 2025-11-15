@@ -25,6 +25,18 @@ func FormatEvent(event *events.Event) {
 		formatCommitContent(event)
 	case "merge":
 		formatMergeContent(event)
+	case "push":
+		formatPushContent(event)
+	case "pull":
+		formatPullContent(event)
+	case "fetch":
+		formatFetchContent(event)
+	case "checkout":
+		formatCheckoutContent(event)
+	case "rebase":
+		formatRebaseContent(event)
+	case "stash":
+		formatStashContent(event)
 	case "command":
 		formatCommandContent(event)
 	case "note":
@@ -42,9 +54,7 @@ func FormatEvent(event *events.Event) {
 
 func getTypeTag(event *events.Event) string {
 	switch event.Type {
-	case "commit":
-		return "git"
-	case "merge":
+	case "commit", "merge", "push", "pull", "fetch", "checkout", "rebase", "stash":
 		return "git"
 	case "command":
 		return "shell"

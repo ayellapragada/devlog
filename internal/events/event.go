@@ -30,6 +30,12 @@ const (
 const (
 	TypeCommit        = "commit"
 	TypeMerge         = "merge"
+	TypePush          = "push"
+	TypePull          = "pull"
+	TypeFetch         = "fetch"
+	TypeCheckout      = "checkout"
+	TypeRebase        = "rebase"
+	TypeStash         = "stash"
 	TypeCommand       = "command"
 	TypeNote          = "note"
 	TypePRMerged      = "pr_merged"
@@ -96,7 +102,8 @@ func isValidSource(source string) bool {
 
 func isValidType(eventType string) bool {
 	switch eventType {
-	case TypeCommit, TypeMerge, TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeTranscription, TypeOther:
+	case TypeCommit, TypeMerge, TypePush, TypePull, TypeFetch, TypeCheckout, TypeRebase, TypeStash,
+		TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeTranscription, TypeOther:
 		return true
 	default:
 		return false
