@@ -25,6 +25,7 @@ const (
 	SourceWisprflow = "wisprflow"
 	SourceManual    = "manual"
 	SourceGitHub    = "github"
+	SourceClipboard = "clipboard"
 )
 
 const (
@@ -41,6 +42,7 @@ const (
 	TypePRMerged      = "pr_merged"
 	TypeContextSwitch = "context_switch"
 	TypeTranscription = "transcription"
+	TypeCopy          = "copy"
 	TypeOther         = "other"
 )
 
@@ -93,7 +95,7 @@ func (e *Event) Validate() error {
 
 func isValidSource(source string) bool {
 	switch source {
-	case SourceGit, SourceShell, SourceWisprflow, SourceManual, SourceGitHub:
+	case SourceGit, SourceShell, SourceWisprflow, SourceManual, SourceGitHub, SourceClipboard:
 		return true
 	default:
 		return false
@@ -103,7 +105,7 @@ func isValidSource(source string) bool {
 func isValidType(eventType string) bool {
 	switch eventType {
 	case TypeCommit, TypeMerge, TypePush, TypePull, TypeFetch, TypeCheckout, TypeRebase, TypeStash,
-		TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeTranscription, TypeOther:
+		TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeTranscription, TypeCopy, TypeOther:
 		return true
 	default:
 		return false

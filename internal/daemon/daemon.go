@@ -19,6 +19,7 @@ import (
 	"devlog/internal/queue"
 	"devlog/internal/session"
 	"devlog/internal/storage"
+	"devlog/modules/clipboard"
 	"devlog/modules/wisprflow"
 )
 
@@ -195,6 +196,62 @@ func (d *Daemon) setupPollers() {
 
 		d.logger.Info("wispr flow polling started",
 			slog.Float64("interval_seconds", pollInterval))
+	}
+
+	if d.config.IsModuleEnabled("clipboard") {
+		modCfg, ok := d.config.GetModuleConfig("clipboard")
+		if !ok {
+			d.logger.Warn("clipboard module config not found")
+			return
+		}
+
+		pollInterval := "3s"
+		if interval, ok := modCfg["poll_interval"].(string); ok {
+			pollInterval = interval
+		}
+
+		maxLength := 10000
+		if ml, ok := modCfg["max_length"].(float64); ok {
+			maxLength = int(ml)
+		}
+
+		minLength := 1
+		if ml, ok := modCfg["min_length"].(float64); ok {
+			minLength = int(ml)
+		}
+
+		duration, err := time.ParseDuration(pollInterval)
+		if err != nil {
+			d.logger.Warn("invalid clipboard poll_interval, using default",
+				slog.String("value", pollInterval),
+				slog.String("error", err.Error()))
+			duration = 3 * time.Second
+		}
+
+		dataDir, err := config.DataDir()
+		if err != nil {
+			d.logger.Warn("clipboard polling failed to get data dir",
+				slog.String("error", err.Error()))
+			return
+		}
+
+		clipboardPoller := clipboard.NewPoller(
+			dataDir,
+			duration,
+			maxLength,
+			minLength,
+		)
+
+		if err := clipboardPoller.Init(); err != nil {
+			d.logger.Warn("clipboard poller init failed",
+				slog.String("error", err.Error()))
+			return
+		}
+
+		d.pollerManager.Register(clipboardPoller)
+
+		d.logger.Info("clipboard polling started",
+			slog.String("interval", pollInterval))
 	}
 }
 

@@ -28,3 +28,6 @@ Thumbs.db
 # Local development
 .env
 .env.local
+
+# devlog binaries from claude testing
+binlog
