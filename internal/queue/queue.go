@@ -10,12 +10,10 @@ import (
 	"devlog/internal/events"
 )
 
-// Queue manages local event queueing when daemon is unavailable
 type Queue struct {
 	dir string
 }
 
-// New creates a new Queue instance
 func New(queueDir string) (*Queue, error) {
 	if err := os.MkdirAll(queueDir, 0755); err != nil {
 		return nil, fmt.Errorf("create queue directory: %w", err)
@@ -26,19 +24,15 @@ func New(queueDir string) (*Queue, error) {
 	}, nil
 }
 
-// Enqueue adds an event to the queue
 func (q *Queue) Enqueue(event *events.Event) error {
-	// Generate filename: timestamp-id.json
 	filename := fmt.Sprintf("%d-%s.json", time.Now().UnixNano(), event.ID)
 	path := filepath.Join(q.dir, filename)
 
-	// Serialize event
 	data, err := event.ToJSON()
 	if err != nil {
 		return fmt.Errorf("serialize event: %w", err)
 	}
 
-	// Write to file atomically
 	tmpPath := path + ".tmp"
 	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
 		return fmt.Errorf("write queue file: %w", err)
@@ -52,14 +46,12 @@ func (q *Queue) Enqueue(event *events.Event) error {
 	return nil
 }
 
-// List returns all queued events sorted by timestamp
 func (q *Queue) List() ([]*events.Event, error) {
 	entries, err := os.ReadDir(q.dir)
 	if err != nil {
 		return nil, fmt.Errorf("read queue directory: %w", err)
 	}
 
-	// Filter and sort .json files
 	var files []string
 	for _, entry := range entries {
 		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
@@ -68,19 +60,16 @@ func (q *Queue) List() ([]*events.Event, error) {
 	}
 	sort.Strings(files)
 
-	// Load events
 	var queuedEvents []*events.Event
 	for _, filename := range files {
 		path := filepath.Join(q.dir, filename)
 		data, err := os.ReadFile(path)
 		if err != nil {
-			// Skip files that can't be read
 			continue
 		}
 
 		event, err := events.FromJSON(data)
 		if err != nil {
-			// Skip invalid events
 			continue
 		}
 
@@ -90,14 +79,12 @@ func (q *Queue) List() ([]*events.Event, error) {
 	return queuedEvents, nil
 }
 
-// Remove deletes a queued event by ID
 func (q *Queue) Remove(eventID string) error {
 	entries, err := os.ReadDir(q.dir)
 	if err != nil {
 		return fmt.Errorf("read queue directory: %w", err)
 	}
 
-	// Find file with matching ID
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -108,7 +95,6 @@ func (q *Queue) Remove(eventID string) error {
 			continue
 		}
 
-		// Check if filename contains the event ID
 		if contains(filename, eventID) {
 			path := filepath.Join(q.dir, filename)
 			if err := os.Remove(path); err != nil {
@@ -121,7 +107,6 @@ func (q *Queue) Remove(eventID string) error {
 	return fmt.Errorf("event not found in queue: %s", eventID)
 }
 
-// Count returns the number of queued events
 func (q *Queue) Count() (int, error) {
 	entries, err := os.ReadDir(q.dir)
 	if err != nil {
@@ -138,7 +123,6 @@ func (q *Queue) Count() (int, error) {
 	return count, nil
 }
 
-// Clear removes all queued events
 func (q *Queue) Clear() error {
 	entries, err := os.ReadDir(q.dir)
 	if err != nil {
@@ -159,7 +143,6 @@ func (q *Queue) Clear() error {
 	return nil
 }
 
-// contains checks if a string contains a substring
 func contains(s, substr string) bool {
 	return len(substr) > 0 && len(s) >= len(substr) &&
 		(s == substr || len(s) > len(substr) && containsHelper(s, substr))

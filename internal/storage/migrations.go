@@ -6,14 +6,12 @@ import (
 	"time"
 )
 
-// Migration represents a database migration
 type Migration struct {
 	Version     int
 	Description string
 	Up          string
 }
 
-// migrations is the list of all migrations in order
 var migrations = []Migration{
 	{
 		Version:     1,
@@ -73,9 +71,7 @@ var migrations = []Migration{
 	},
 }
 
-// getCurrentVersion returns the current schema version
 func getCurrentVersion(db *sql.DB) (int, error) {
-	// Create schema_version table if it doesn't exist
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_version (
 			version INTEGER PRIMARY KEY,
@@ -89,7 +85,7 @@ func getCurrentVersion(db *sql.DB) (int, error) {
 	var version int
 	err = db.QueryRow("SELECT MAX(version) FROM schema_version").Scan(&version)
 	if err == sql.ErrNoRows || version == 0 {
-		return 0, nil // No migrations applied yet
+		return 0, nil
 	}
 	if err != nil {
 		return 0, fmt.Errorf("query version: %w", err)
@@ -98,14 +94,12 @@ func getCurrentVersion(db *sql.DB) (int, error) {
 	return version, nil
 }
 
-// setVersion records that a migration has been applied
 func setVersion(db *sql.DB, version int) error {
 	_, err := db.Exec("INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
 		version, getCurrentTimestamp())
 	return err
 }
 
-// RunMigrations applies all pending migrations
 func RunMigrations(db *sql.DB) error {
 	currentVersion, err := getCurrentVersion(db)
 	if err != nil {
@@ -114,17 +108,15 @@ func RunMigrations(db *sql.DB) error {
 
 	for _, migration := range migrations {
 		if migration.Version <= currentVersion {
-			continue // Already applied
+			continue
 		}
 
 		fmt.Printf("Applying migration %d: %s\n", migration.Version, migration.Description)
 
-		// Execute migration
 		if _, err := db.Exec(migration.Up); err != nil {
 			return fmt.Errorf("apply migration %d: %w", migration.Version, err)
 		}
 
-		// Record version
 		if err := setVersion(db, migration.Version); err != nil {
 			return fmt.Errorf("record version %d: %w", migration.Version, err)
 		}
@@ -139,7 +131,6 @@ func RunMigrations(db *sql.DB) error {
 	return nil
 }
 
-// getCurrentTimestamp returns current Unix timestamp
 func getCurrentTimestamp() int64 {
 	return time.Now().Unix()
 }

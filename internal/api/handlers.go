@@ -13,7 +13,6 @@ import (
 	"devlog/internal/storage"
 )
 
-// Server holds the HTTP server dependencies
 type Server struct {
 	storage        *storage.Storage
 	sessionManager *session.Manager
@@ -21,7 +20,6 @@ type Server struct {
 	startTime      time.Time
 }
 
-// NewServer creates a new API server
 func NewServer(storage *storage.Storage, sessionManager *session.Manager, cfg *config.Config) *Server {
 	return &Server{
 		storage:        storage,
@@ -31,7 +29,6 @@ func NewServer(storage *storage.Storage, sessionManager *session.Manager, cfg *c
 	}
 }
 
-// IngestHandler handles POST /api/v1/ingest
 func (s *Server) IngestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -56,11 +53,9 @@ func (s *Server) IngestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Filter shell commands based on config
 	if event.Source == events.SourceShell && event.Type == events.TypeCommand {
 		if command, ok := event.Payload["command"].(string); ok {
 			if !s.config.ShouldCaptureCommand(command) {
-				// Silently drop filtered command - return success
 				respondJSON(w, map[string]interface{}{
 					"ok":       true,
 					"filtered": true,
@@ -81,7 +76,6 @@ func (s *Server) IngestHandler(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK)
 }
 
-// StatusHandler handles GET /api/v1/status
 func (s *Server) StatusHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -103,14 +97,12 @@ func (s *Server) StatusHandler(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK)
 }
 
-// respondJSON writes a JSON response
 func respondJSON(w http.ResponseWriter, data interface{}, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(data)
 }
 
-// respondError writes an error JSON response
 func respondError(w http.ResponseWriter, message string, statusCode int) {
 	respondJSON(w, map[string]interface{}{
 		"ok":    false,
@@ -118,9 +110,6 @@ func respondError(w http.ResponseWriter, message string, statusCode int) {
 	}, statusCode)
 }
 
-// SessionHandler handles session management requests
-// GET  /api/v1/sessions - List sessions
-// POST /api/v1/sessions - Create a new session
 func (s *Server) SessionHandler(w http.ResponseWriter, r *http.Request) {
 	if s.sessionManager == nil {
 		respondError(w, "Session management not enabled", http.StatusServiceUnavailable)
@@ -137,7 +126,6 @@ func (s *Server) SessionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleListSessions handles GET requests for listing sessions
 func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	sessions, err := s.sessionManager.List(50, "") // Get last 50 sessions
 	if err != nil {
@@ -145,7 +133,6 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Format sessions for response
 	sessionList := make([]map[string]interface{}, len(sessions))
 	for i, sess := range sessions {
 		sessionList[i] = map[string]interface{}{
@@ -167,7 +154,6 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK)
 }
 
-// handleCreateSession handles POST requests for creating sessions
 func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		EventIDs    []string `json:"event_ids"`
@@ -184,7 +170,6 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create session from event IDs
 	sess, err := s.sessionManager.CreateFromEventIDs(req.EventIDs, req.Description, session.TriggerManual)
 	if err != nil {
 		respondError(w, fmt.Sprintf("Failed to create session: %v", err), http.StatusInternalServerError)
@@ -199,7 +184,6 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	}, http.StatusOK)
 }
 
-// formatDuration formats a duration in a human-readable format
 func formatDuration(d time.Duration) string {
 	hours := int(d.Hours())
 	minutes := int(d.Minutes()) % 60
@@ -214,7 +198,6 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%ds", seconds)
 }
 
-// SetupRoutes configures the HTTP routes
 func (s *Server) SetupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/ingest", s.IngestHandler)

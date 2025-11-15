@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// SessionStatus represents the current status of a session
 type SessionStatus string
 
 const (
@@ -17,7 +16,6 @@ const (
 	StatusArchived  SessionStatus = "archived"
 )
 
-// SessionTrigger represents how a session was initiated or ended
 type SessionTrigger string
 
 const (
@@ -28,7 +26,6 @@ const (
 	TriggerIdle    SessionTrigger = "idle_timeout"
 )
 
-// Session represents a cohesive work session containing related events
 type Session struct {
 	ID           string                 `json:"id"`
 	StartTime    time.Time              `json:"start_time"`
@@ -43,7 +40,6 @@ type Session struct {
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// NewSession creates a new session with the given trigger
 func NewSession(trigger SessionTrigger) *Session {
 	return &Session{
 		ID:           uuid.New().String(),
@@ -55,19 +51,16 @@ func NewSession(trigger SessionTrigger) *Session {
 	}
 }
 
-// NewManualSession creates a new manually-triggered session with optional description
 func NewManualSession(description string) *Session {
 	session := NewSession(TriggerManual)
 	session.Description = description
 	return session
 }
 
-// AddEvent adds an event ID to this session
 func (s *Session) AddEvent(eventID string) {
 	s.EventIDs = append(s.EventIDs, eventID)
 }
 
-// Complete marks the session as completed with the given trigger
 func (s *Session) Complete(trigger SessionTrigger) error {
 	if s.Status != StatusActive {
 		return fmt.Errorf("cannot complete session: status is %s, expected %s", s.Status, StatusActive)
@@ -80,7 +73,6 @@ func (s *Session) Complete(trigger SessionTrigger) error {
 	return nil
 }
 
-// Archive marks the session as archived
 func (s *Session) Archive() error {
 	if s.Status == StatusArchived {
 		return fmt.Errorf("session is already archived")
@@ -90,8 +82,6 @@ func (s *Session) Archive() error {
 	return nil
 }
 
-// Duration returns the duration of the session
-// If the session is still active, returns duration up to now
 func (s *Session) Duration() time.Duration {
 	if s.EndTime == nil {
 		return time.Since(s.StartTime)
@@ -99,12 +89,10 @@ func (s *Session) Duration() time.Duration {
 	return s.EndTime.Sub(s.StartTime)
 }
 
-// IsActive returns true if the session is currently active
 func (s *Session) IsActive() bool {
 	return s.Status == StatusActive
 }
 
-// Validate checks if the session is valid
 func (s *Session) Validate() error {
 	if s.ID == "" {
 		return fmt.Errorf("id is required")
@@ -141,7 +129,6 @@ func (s *Session) Validate() error {
 	return nil
 }
 
-// isValidStatus checks if a status is valid
 func isValidStatus(status SessionStatus) bool {
 	switch status {
 	case StatusActive, StatusCompleted, StatusArchived:
@@ -151,7 +138,6 @@ func isValidStatus(status SessionStatus) bool {
 	}
 }
 
-// isValidTrigger checks if a trigger is valid
 func isValidTrigger(trigger SessionTrigger) bool {
 	switch trigger {
 	case TriggerManual, TriggerPRMerge, TriggerRebase, TriggerAuto, TriggerIdle:
@@ -161,12 +147,10 @@ func isValidTrigger(trigger SessionTrigger) bool {
 	}
 }
 
-// ToJSON serializes the session to JSON
 func (s *Session) ToJSON() ([]byte, error) {
 	return json.Marshal(s)
 }
 
-// FromJSON deserializes a session from JSON
 func FromJSON(data []byte) (*Session, error) {
 	var session Session
 	if err := json.Unmarshal(data, &session); err != nil {
@@ -175,7 +159,6 @@ func FromJSON(data []byte) (*Session, error) {
 	return &session, nil
 }
 
-// MetadataJSON returns the metadata as a JSON string for storage
 func (s *Session) MetadataJSON() (string, error) {
 	if s.Metadata == nil {
 		return "{}", nil

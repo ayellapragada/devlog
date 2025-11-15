@@ -12,15 +12,11 @@ import (
 	"devlog/internal/events"
 )
 
-// Storage handles SQLite database operations
 type Storage struct {
 	db *sql.DB
 }
 
-// New creates a new Storage instance
-// dbPath should be an absolute path to the SQLite database file
 func New(dbPath string) (*Storage, error) {
-	// Check if database exists
 	_, err := os.Stat(dbPath)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("database does not exist at %s (run with --init to create)", dbPath)
@@ -31,13 +27,11 @@ func New(dbPath string) (*Storage, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// Enable WAL mode for concurrent writes
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
 	}
 
-	// Run migrations
 	if err := RunMigrations(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("run migrations: %w", err)
@@ -46,32 +40,26 @@ func New(dbPath string) (*Storage, error) {
 	return &Storage{db: db}, nil
 }
 
-// InitDB creates a new database file and initializes the schema
 func InitDB(dbPath string) error {
-	// Check if database already exists
 	if _, err := os.Stat(dbPath); err == nil {
 		return fmt.Errorf("database already exists at %s", dbPath)
 	}
 
-	// Ensure directory exists
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("create database directory: %w", err)
 	}
 
-	// Create database
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return fmt.Errorf("create database: %w", err)
 	}
 	defer db.Close()
 
-	// Enable WAL mode
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		return fmt.Errorf("enable WAL mode: %w", err)
 	}
 
-	// Create schema
 	schema := `
 	CREATE TABLE events (
 		id TEXT PRIMARY KEY,
@@ -128,7 +116,6 @@ func InitDB(dbPath string) error {
 	return nil
 }
 
-// Close closes the database connection
 func (s *Storage) Close() error {
 	if s.db != nil {
 		return s.db.Close()
@@ -136,7 +123,6 @@ func (s *Storage) Close() error {
 	return nil
 }
 
-// InsertEvent inserts a new event into the database
 func (s *Storage) InsertEvent(event *events.Event) error {
 	if err := event.Validate(); err != nil {
 		return fmt.Errorf("invalid event: %w", err)
@@ -171,7 +157,6 @@ func (s *Storage) InsertEvent(event *events.Event) error {
 	return nil
 }
 
-// GetEvent retrieves an event by ID
 func (s *Storage) GetEvent(id string) (*events.Event, error) {
 	query := `
 		SELECT id, timestamp, source, type, repo, branch, payload
@@ -224,7 +209,6 @@ func (s *Storage) GetEvent(id string) (*events.Event, error) {
 	return restoredEvent, nil
 }
 
-// ListEvents retrieves recent events with optional filters
 func (s *Storage) ListEvents(limit int, source string) ([]*events.Event, error) {
 	query := `
 		SELECT id, timestamp, source, type, repo, branch, payload
@@ -303,7 +287,6 @@ func (s *Storage) ListEvents(limit int, source string) ([]*events.Event, error) 
 	return result, nil
 }
 
-// Count returns the total number of events
 func (s *Storage) Count() (int, error) {
 	var count int
 	err := s.db.QueryRow("SELECT COUNT(*) FROM events").Scan(&count)

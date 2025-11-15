@@ -18,7 +18,6 @@ import (
 	"devlog/internal/storage"
 )
 
-// Daemon manages the devlogd lifecycle
 type Daemon struct {
 	config         *config.Config
 	storage        *storage.Storage
@@ -26,7 +25,6 @@ type Daemon struct {
 	server         *http.Server
 }
 
-// New creates a new Daemon instance
 func New(cfg *config.Config, store *storage.Storage) *Daemon {
 	sessionManager := session.NewManager(store)
 
@@ -37,7 +35,6 @@ func New(cfg *config.Config, store *storage.Storage) *Daemon {
 	}
 }
 
-// Start starts the daemon HTTP server
 func (d *Daemon) Start() error {
 	apiServer := api.NewServer(d.storage, d.sessionManager, d.config)
 	mux := apiServer.SetupRoutes()
@@ -48,21 +45,17 @@ func (d *Daemon) Start() error {
 		Handler: mux,
 	}
 
-	// Write PID file
 	if err := d.writePIDFile(); err != nil {
 		return fmt.Errorf("write PID file: %w", err)
 	}
 
-	// Process queued events on startup
 	if err := d.processQueue(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to process queue: %v\n", err)
 	}
 
-	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// Start server in a goroutine
 	errChan := make(chan error, 1)
 	go func() {
 		fmt.Printf("devlogd started on %s\n", addr)
@@ -71,7 +64,6 @@ func (d *Daemon) Start() error {
 		}
 	}()
 
-	// Wait for signal or error
 	select {
 	case <-sigChan:
 		fmt.Println("\nShutting down gracefully...")
@@ -82,7 +74,6 @@ func (d *Daemon) Start() error {
 	}
 }
 
-// processQueue processes any queued events from when daemon was down
 func (d *Daemon) processQueue() error {
 	queueDir, err := config.QueueDir()
 	if err != nil {
@@ -107,7 +98,6 @@ func (d *Daemon) processQueue() error {
 
 	successCount := 0
 	for _, event := range queuedEvents {
-		// Validate and insert directly into storage
 		if err := event.Validate(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: skipping invalid queued event %s: %v\n", event.ID, err)
 			continue
@@ -118,7 +108,6 @@ func (d *Daemon) processQueue() error {
 			continue
 		}
 
-		// Successfully inserted - remove from queue
 		if err := q.Remove(event.ID); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to remove event %s from queue: %v\n", event.ID, err)
 		} else {
@@ -130,7 +119,6 @@ func (d *Daemon) processQueue() error {
 	return nil
 }
 
-// Shutdown gracefully shuts down the daemon
 func (d *Daemon) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -152,7 +140,6 @@ func (d *Daemon) Shutdown() error {
 	return nil
 }
 
-// PIDFile returns the path to the PID file
 func PIDFile() (string, error) {
 	configDir, err := config.ConfigDir()
 	if err != nil {
@@ -161,14 +148,12 @@ func PIDFile() (string, error) {
 	return filepath.Join(configDir, "devlogd.pid"), nil
 }
 
-// writePIDFile writes the current process ID to the PID file
 func (d *Daemon) writePIDFile() error {
 	pidPath, err := PIDFile()
 	if err != nil {
 		return err
 	}
 
-	// Check if daemon is already running
 	if IsRunning() {
 		return fmt.Errorf("daemon is already running (PID file exists at %s)", pidPath)
 	}
@@ -177,7 +162,6 @@ func (d *Daemon) writePIDFile() error {
 	return os.WriteFile(pidPath, []byte(strconv.Itoa(pid)), 0644)
 }
 
-// removePIDFile removes the PID file
 func (d *Daemon) removePIDFile() {
 	pidPath, err := PIDFile()
 	if err != nil {
@@ -186,7 +170,6 @@ func (d *Daemon) removePIDFile() {
 	os.Remove(pidPath)
 }
 
-// IsRunning checks if the daemon is running
 func IsRunning() bool {
 	pidPath, err := PIDFile()
 	if err != nil {
@@ -203,18 +186,15 @@ func IsRunning() bool {
 		return false
 	}
 
-	// Check if process exists
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		return false
 	}
 
-	// On Unix, FindProcess always succeeds, so we need to send signal 0
 	err = process.Signal(syscall.Signal(0))
 	return err == nil
 }
 
-// GetPID returns the PID of the running daemon, or 0 if not running
 func GetPID() int {
 	pidPath, err := PIDFile()
 	if err != nil {
@@ -234,7 +214,6 @@ func GetPID() int {
 	return pid
 }
 
-// StopDaemon stops a running daemon
 func StopDaemon() error {
 	if !IsRunning() {
 		return fmt.Errorf("daemon is not running")
@@ -254,10 +233,8 @@ func StopDaemon() error {
 		return fmt.Errorf("send SIGTERM: %w", err)
 	}
 
-	// Wait for process to exit (with timeout)
 	for i := 0; i < 50; i++ {
 		if !IsRunning() {
-			// Clean up PID file if it still exists
 			pidPath, _ := PIDFile()
 			os.Remove(pidPath)
 			return nil

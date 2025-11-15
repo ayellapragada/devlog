@@ -9,7 +9,6 @@ import (
 	"devlog/internal/session"
 )
 
-// InsertSession inserts a new session into the database
 func (s *Storage) InsertSession(sess *session.Session) error {
 	if err := sess.Validate(); err != nil {
 		return fmt.Errorf("invalid session: %w", err)
@@ -62,7 +61,6 @@ func (s *Storage) InsertSession(sess *session.Session) error {
 	return nil
 }
 
-// UpdateSession updates an existing session in the database
 func (s *Storage) UpdateSession(sess *session.Session) error {
 	if err := sess.Validate(); err != nil {
 		return fmt.Errorf("invalid session: %w", err)
@@ -120,7 +118,6 @@ func (s *Storage) UpdateSession(sess *session.Session) error {
 	return nil
 }
 
-// GetSession retrieves a session by ID
 func (s *Storage) GetSession(id string) (*session.Session, error) {
 	query := `
 		SELECT id, start_time, end_time, status, start_trigger, end_trigger,
@@ -137,7 +134,6 @@ func (s *Storage) GetSession(id string) (*session.Session, error) {
 		return nil, fmt.Errorf("query session: %w", err)
 	}
 
-	// Load event IDs
 	eventIDs, err := s.GetSessionEvents(id)
 	if err != nil {
 		return nil, fmt.Errorf("load session events: %w", err)
@@ -147,7 +143,6 @@ func (s *Storage) GetSession(id string) (*session.Session, error) {
 	return sess, nil
 }
 
-// GetActiveSession retrieves the currently active session, if any
 func (s *Storage) GetActiveSession() (*session.Session, error) {
 	query := `
 		SELECT id, start_time, end_time, status, start_trigger, end_trigger,
@@ -160,13 +155,12 @@ func (s *Storage) GetActiveSession() (*session.Session, error) {
 
 	sess, err := s.scanSession(s.db.QueryRow(query, string(session.StatusActive)))
 	if err == sql.ErrNoRows {
-		return nil, nil // No active session is not an error
+		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query active session: %w", err)
 	}
 
-	// Load event IDs
 	eventIDs, err := s.GetSessionEvents(sess.ID)
 	if err != nil {
 		return nil, fmt.Errorf("load session events: %w", err)
@@ -176,7 +170,6 @@ func (s *Storage) GetActiveSession() (*session.Session, error) {
 	return sess, nil
 }
 
-// ListSessions retrieves sessions with optional filters
 func (s *Storage) ListSessions(limit int, status session.SessionStatus) ([]*session.Session, error) {
 	query := `
 		SELECT id, start_time, end_time, status, start_trigger, end_trigger,
@@ -213,7 +206,6 @@ func (s *Storage) ListSessions(limit int, status session.SessionStatus) ([]*sess
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
 
-		// Load event IDs for each session
 		eventIDs, err := s.GetSessionEvents(sess.ID)
 		if err != nil {
 			return nil, fmt.Errorf("load session events: %w", err)
@@ -230,7 +222,6 @@ func (s *Storage) ListSessions(limit int, status session.SessionStatus) ([]*sess
 	return result, nil
 }
 
-// GetSessionEvents retrieves all event IDs for a session
 func (s *Storage) GetSessionEvents(sessionID string) ([]string, error) {
 	query := `
 		SELECT event_id
@@ -261,7 +252,6 @@ func (s *Storage) GetSessionEvents(sessionID string) ([]string, error) {
 	return eventIDs, nil
 }
 
-// AddEventToSession associates an event with a session
 func (s *Storage) AddEventToSession(sessionID, eventID string) error {
 	query := `
 		INSERT INTO session_events (session_id, event_id, created_at)
@@ -276,7 +266,6 @@ func (s *Storage) AddEventToSession(sessionID, eventID string) error {
 	return nil
 }
 
-// scanSession is a helper to scan a session from a query result
 func (s *Storage) scanSession(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*session.Session, error) {
@@ -303,10 +292,8 @@ func (s *Storage) scanSession(scanner interface {
 		return nil, err
 	}
 
-	// Convert Unix timestamps to time.Time
 	sess.StartTime = time.Unix(startTime, 0).UTC()
 
-	// Handle nullable fields
 	if endTime.Valid {
 		t := time.Unix(endTime.Int64, 0).UTC()
 		sess.EndTime = &t

@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Event represents a single development event
 type Event struct {
 	Version   int                    `json:"v"`
 	ID        string                 `json:"id"`
@@ -20,7 +19,6 @@ type Event struct {
 	Payload   map[string]interface{} `json:"payload"`
 }
 
-// Valid source types
 const (
 	SourceGit       = "git"
 	SourceShell     = "shell"
@@ -29,7 +27,6 @@ const (
 	SourceGitHub    = "github"
 )
 
-// Valid event types
 const (
 	TypeCommit        = "commit"
 	TypeMerge         = "merge"
@@ -40,7 +37,6 @@ const (
 	TypeOther         = "other"
 )
 
-// NewEvent creates a new event with generated ID and current timestamp
 func NewEvent(source, eventType string) *Event {
 	return &Event{
 		Version:   1,
@@ -52,7 +48,6 @@ func NewEvent(source, eventType string) *Event {
 	}
 }
 
-// Validate checks if the event is valid
 func (e *Event) Validate() error {
 	if e.Version != 1 {
 		return fmt.Errorf("unsupported version: %d", e.Version)
@@ -89,7 +84,6 @@ func (e *Event) Validate() error {
 	return nil
 }
 
-// isValidSource checks if a source is valid
 func isValidSource(source string) bool {
 	switch source {
 	case SourceGit, SourceShell, SourceWisprflow, SourceManual, SourceGitHub:
@@ -99,7 +93,6 @@ func isValidSource(source string) bool {
 	}
 }
 
-// isValidType checks if an event type is valid
 func isValidType(eventType string) bool {
 	switch eventType {
 	case TypeCommit, TypeMerge, TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeOther:
@@ -109,12 +102,10 @@ func isValidType(eventType string) bool {
 	}
 }
 
-// ToJSON serializes the event to JSON
 func (e *Event) ToJSON() ([]byte, error) {
 	return json.Marshal(e)
 }
 
-// FromJSON deserializes an event from JSON
 func FromJSON(data []byte) (*Event, error) {
 	var event Event
 	if err := json.Unmarshal(data, &event); err != nil {
@@ -123,7 +114,6 @@ func FromJSON(data []byte) (*Event, error) {
 	return &event, nil
 }
 
-// PayloadJSON returns the payload as a JSON string for storage
 func (e *Event) PayloadJSON() (string, error) {
 	data, err := json.Marshal(e.Payload)
 	if err != nil {

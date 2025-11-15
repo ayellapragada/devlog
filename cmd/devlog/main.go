@@ -14,8 +14,13 @@ import (
 	"devlog/internal/config"
 	"devlog/internal/daemon"
 	"devlog/internal/events"
+	"devlog/internal/modules"
 	"devlog/internal/queue"
 	"devlog/internal/storage"
+
+	// Import modules to register them
+	_ "devlog/modules/git"
+	_ "devlog/modules/shell"
 )
 
 func main() {
@@ -46,6 +51,10 @@ func run() error {
 		return initCommand()
 	case "session":
 		return sessionCommand()
+	case "config":
+		return configCommand()
+	case "module":
+		return moduleCommand()
 	case "help":
 		printUsage()
 		return nil
@@ -61,6 +70,10 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  devlog init                          Initialize config and database")
+	fmt.Println("  devlog config status                 Show configuration status")
+	fmt.Println("  devlog module list                   List available modules")
+	fmt.Println("  devlog module install <name>         Install and enable a module")
+	fmt.Println("  devlog module uninstall <name>       Uninstall and disable a module")
 	fmt.Println("  devlog daemon start                  Start the daemon")
 	fmt.Println("  devlog daemon stop                   Stop the daemon")
 	fmt.Println("  devlog daemon status                 Check daemon status")
@@ -98,7 +111,20 @@ func initCommand() error {
 
 	configPath, _ := config.ConfigPath()
 	fmt.Printf("     %s\n", configPath)
-	fmt.Println("  2. Start the daemon:")
+
+	fmt.Println()
+	fmt.Println("  2. Install modules to enable event capture:")
+
+	// List available modules
+	allModules := modules.List()
+	for _, mod := range allModules {
+		fmt.Printf("     - %s: %s\n", mod.Name(), mod.Description())
+	}
+
+	fmt.Println()
+	fmt.Println("     Install modules with: devlog module install <name>")
+	fmt.Println()
+	fmt.Println("  3. Start the daemon:")
 	fmt.Println("     devlog daemon start")
 
 	return nil
@@ -832,6 +858,270 @@ func sessionList() error {
 		}
 		fmt.Println()
 	}
+
+	return nil
+}
+
+func configCommand() error {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage:")
+		fmt.Println("  devlog config status")
+		return fmt.Errorf("missing config subcommand")
+	}
+
+	subcommand := os.Args[2]
+
+	switch subcommand {
+	case "status":
+		return configStatus()
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown config subcommand: %s\n", subcommand)
+		return fmt.Errorf("unknown config subcommand: %s", subcommand)
+	}
+}
+
+func configStatus() error {
+	// Try to load config
+	cfg, err := config.Load()
+	if err != nil {
+		// Check if config doesn't exist yet
+		configPath, _ := config.ConfigPath()
+		if _, statErr := os.Stat(configPath); os.IsNotExist(statErr) {
+			fmt.Println("Configuration Status")
+			fmt.Println("===================")
+			fmt.Println()
+			fmt.Println("Status: Not initialized")
+			fmt.Println()
+			fmt.Println("Run 'devlog init' to initialize devlog")
+			return nil
+		}
+		return err
+	}
+
+	configPath, _ := config.ConfigPath()
+	dataDir, _ := config.DataDir()
+
+	fmt.Println("Configuration Status")
+	fmt.Println("===================")
+	fmt.Println()
+	fmt.Printf("Config file: %s\n", configPath)
+	fmt.Printf("Data directory: %s\n", dataDir)
+	fmt.Printf("Obsidian path: %s\n", cfg.ObsidianPath)
+	fmt.Printf("HTTP port: %d\n", cfg.HTTP.Port)
+	fmt.Println()
+
+	// List modules and their status
+	fmt.Println("Modules:")
+	allModules := modules.List()
+	if len(allModules) == 0 {
+		fmt.Println("  No modules available")
+	} else {
+		for _, mod := range allModules {
+			enabled := cfg.IsModuleEnabled(mod.Name())
+			status := "disabled"
+			if enabled {
+				status = "enabled"
+			}
+			fmt.Printf("  [%s] %s - %s\n", status, mod.Name(), mod.Description())
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("Use 'devlog module install <name>' to enable a module")
+
+	return nil
+}
+
+func moduleCommand() error {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage:")
+		fmt.Println("  devlog module list")
+		fmt.Println("  devlog module install <name>")
+		fmt.Println("  devlog module uninstall <name>")
+		return fmt.Errorf("missing module subcommand")
+	}
+
+	subcommand := os.Args[2]
+
+	switch subcommand {
+	case "list":
+		return moduleList()
+	case "install", "init":
+		return moduleInstall()
+	case "uninstall":
+		return moduleUninstall()
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown module subcommand: %s\n", subcommand)
+		return fmt.Errorf("unknown module subcommand: %s", subcommand)
+	}
+}
+
+func moduleList() error {
+	fmt.Println("Available Modules")
+	fmt.Println("================")
+	fmt.Println()
+
+	allModules := modules.List()
+	if len(allModules) == 0 {
+		fmt.Println("No modules available")
+		return nil
+	}
+
+	// Try to load config to show status
+	cfg, err := config.Load()
+	var showStatus bool
+	if err == nil {
+		showStatus = true
+	}
+
+	for _, mod := range allModules {
+		status := ""
+		if showStatus {
+			if cfg.IsModuleEnabled(mod.Name()) {
+				status = " [enabled]"
+			} else {
+				status = " [disabled]"
+			}
+		}
+		fmt.Printf("  %s%s\n", mod.Name(), status)
+		fmt.Printf("    %s\n", mod.Description())
+		fmt.Println()
+	}
+
+	if !showStatus {
+		fmt.Println("Run 'devlog init' to initialize configuration")
+	}
+
+	return nil
+}
+
+func moduleInstall() error {
+	if len(os.Args) < 4 {
+		return fmt.Errorf("usage: devlog module install <name>")
+	}
+
+	moduleName := os.Args[3]
+
+	// Get the module
+	mod, err := modules.Get(moduleName)
+	if err != nil {
+		return fmt.Errorf("module not found: %s", moduleName)
+	}
+
+	// Load config
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w (run 'devlog init' first)", err)
+	}
+
+	// Check if already enabled
+	if cfg.IsModuleEnabled(moduleName) {
+		fmt.Printf("Module '%s' is already enabled\n", moduleName)
+		return nil
+	}
+
+	fmt.Printf("Installing module: %s\n", moduleName)
+	fmt.Printf("Description: %s\n", mod.Description())
+	fmt.Println()
+
+	// Create install context
+	homeDir, _ := os.UserHomeDir()
+	configDir, _ := config.ConfigDir()
+	dataDir, _ := config.DataDir()
+
+	ctx := &modules.InstallContext{
+		Interactive: true,
+		ConfigDir:   configDir,
+		DataDir:     dataDir,
+		HomeDir:     homeDir,
+		Log: func(format string, args ...interface{}) {
+			fmt.Printf(format+"\n", args...)
+		},
+	}
+
+	// Install the module
+	if err := mod.Install(ctx); err != nil {
+		return fmt.Errorf("install module: %w", err)
+	}
+
+	// Enable in config
+	cfg.SetModuleEnabled(moduleName, true)
+
+	// Set default config for the module
+	defaultCfg := mod.DefaultConfig()
+	if cfgMap, ok := defaultCfg.(map[string]interface{}); ok {
+		cfg.SetModuleConfig(moduleName, cfgMap)
+	}
+
+	// Save config
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Printf("✓ Module '%s' installed and enabled\n", moduleName)
+
+	return nil
+}
+
+func moduleUninstall() error {
+	if len(os.Args) < 4 {
+		return fmt.Errorf("usage: devlog module uninstall <name>")
+	}
+
+	moduleName := os.Args[3]
+
+	// Get the module
+	mod, err := modules.Get(moduleName)
+	if err != nil {
+		return fmt.Errorf("module not found: %s", moduleName)
+	}
+
+	// Load config
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Check if not enabled
+	if !cfg.IsModuleEnabled(moduleName) {
+		fmt.Printf("Module '%s' is not enabled\n", moduleName)
+		return nil
+	}
+
+	fmt.Printf("Uninstalling module: %s\n", moduleName)
+	fmt.Println()
+
+	// Create install context
+	homeDir, _ := os.UserHomeDir()
+	configDir, _ := config.ConfigDir()
+	dataDir, _ := config.DataDir()
+
+	ctx := &modules.InstallContext{
+		Interactive: true,
+		ConfigDir:   configDir,
+		DataDir:     dataDir,
+		HomeDir:     homeDir,
+		Log: func(format string, args ...interface{}) {
+			fmt.Printf(format+"\n", args...)
+		},
+	}
+
+	// Uninstall the module
+	if err := mod.Uninstall(ctx); err != nil {
+		return fmt.Errorf("uninstall module: %w", err)
+	}
+
+	// Disable in config
+	cfg.SetModuleEnabled(moduleName, false)
+
+	// Save config
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Printf("✓ Module '%s' uninstalled and disabled\n", moduleName)
 
 	return nil
 }

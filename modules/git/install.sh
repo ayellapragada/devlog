@@ -11,7 +11,7 @@ HOOKS_DIR="$HOME/.config/git/hooks"
 mkdir -p "$HOOKS_DIR"
 
 # Get the source hook path
-HOOK_SOURCE="$(cd "$(dirname "$0")" && pwd)/post-commit"
+HOOK_SOURCE="$(cd "$(dirname "$0")" && pwd)/hooks/post-commit"
 
 if [ ! -f "$HOOK_SOURCE" ]; then
     echo "Error: post-commit hook not found at $HOOK_SOURCE"

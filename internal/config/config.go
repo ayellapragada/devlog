@@ -10,10 +10,19 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	ObsidianPath      string      `yaml:"obsidian_path"`
-	HTTP              HTTPConfig  `yaml:"http"`
-	SessionGapMinutes int         `yaml:"session_gap_minutes,omitempty"`
-	Shell             ShellConfig `yaml:"shell,omitempty"`
+	ObsidianPath      string                  `yaml:"obsidian_path"`
+	HTTP              HTTPConfig              `yaml:"http"`
+	SessionGapMinutes int                     `yaml:"session_gap_minutes,omitempty"`
+	Modules           map[string]ModuleConfig `yaml:"modules,omitempty"`
+
+	// Deprecated: Use Modules["shell"] instead
+	Shell ShellConfig `yaml:"shell,omitempty"`
+}
+
+// ModuleConfig represents configuration for a specific module
+type ModuleConfig struct {
+	Enabled bool                   `yaml:"enabled"`
+	Config  map[string]interface{} `yaml:",inline"`
 }
 
 // HTTPConfig contains HTTP server settings
@@ -34,14 +43,7 @@ func DefaultConfig() *Config {
 		HTTP: HTTPConfig{
 			Port: 8573,
 		},
-		Shell: ShellConfig{
-			Enabled:     true,
-			CaptureMode: "important",
-			IgnoreList: []string{
-				"ls", "cd", "pwd", "echo", "cat", "clear",
-				"exit", "history", "which", "type", "alias",
-			},
-		},
+		Modules: make(map[string]ModuleConfig),
 	}
 }
 
@@ -79,6 +81,25 @@ func QueueDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dataDir, "queue"), nil
+}
+
+// Save writes the config to the config file
+func (c *Config) Save() error {
+	path, err := ConfigPath()
+	if err != nil {
+		return err
+	}
+
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write config file: %w", err)
+	}
+
+	return nil
 }
 
 // Load reads and parses the config file
@@ -127,17 +148,66 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("http port must be between 1 and 65535")
 	}
 
-	// Validate shell config
-	if c.Shell.CaptureMode != "" && c.Shell.CaptureMode != "all" && c.Shell.CaptureMode != "important" {
-		return fmt.Errorf("shell.capture_mode must be 'all' or 'important'")
-	}
-
 	return nil
 }
 
+// IsModuleEnabled checks if a module is enabled
+func (c *Config) IsModuleEnabled(moduleName string) bool {
+	if c.Modules == nil {
+		return false
+	}
+	modCfg, exists := c.Modules[moduleName]
+	return exists && modCfg.Enabled
+}
+
+// GetModuleConfig returns the configuration for a specific module
+func (c *Config) GetModuleConfig(moduleName string) (map[string]interface{}, bool) {
+	if c.Modules == nil {
+		return nil, false
+	}
+	modCfg, exists := c.Modules[moduleName]
+	if !exists || !modCfg.Enabled {
+		return nil, false
+	}
+	return modCfg.Config, true
+}
+
+// SetModuleEnabled enables or disables a module
+func (c *Config) SetModuleEnabled(moduleName string, enabled bool) {
+	if c.Modules == nil {
+		c.Modules = make(map[string]ModuleConfig)
+	}
+	modCfg := c.Modules[moduleName]
+	modCfg.Enabled = enabled
+	c.Modules[moduleName] = modCfg
+}
+
+// SetModuleConfig sets the configuration for a module
+func (c *Config) SetModuleConfig(moduleName string, config map[string]interface{}) {
+	if c.Modules == nil {
+		c.Modules = make(map[string]ModuleConfig)
+	}
+	modCfg := c.Modules[moduleName]
+	modCfg.Config = config
+	c.Modules[moduleName] = modCfg
+}
+
 // ShouldCaptureCommand checks if a shell command should be captured
+// This maintains backward compatibility with the old shell config
 func (c *Config) ShouldCaptureCommand(command string) bool {
-	// If shell hooks are disabled, don't capture
+	// Check new module-based config first
+	if c.IsModuleEnabled("shell") {
+		shellCfg, ok := c.GetModuleConfig("shell")
+		if ok {
+			// Extract shell-specific settings
+			captureMode, _ := shellCfg["capture_mode"].(string)
+			ignoreList, _ := shellCfg["ignore_list"].([]interface{})
+
+			return shouldCaptureWithConfig(command, captureMode, ignoreList)
+		}
+	}
+
+	// Fall back to old shell config for backward compatibility
 	if !c.Shell.Enabled {
 		return false
 	}
@@ -173,6 +243,41 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 	// In "important" mode, only capture commands that are likely meaningful
 	// (build tools, git commands, package managers, etc.)
 	return true // For now, let ignore list handle filtering
+}
+
+// shouldCaptureWithConfig is a helper for checking if a command should be captured
+func shouldCaptureWithConfig(command string, captureMode string, ignoreList []interface{}) bool {
+	// Extract the base command (first word)
+	baseCmd := command
+	for i, ch := range command {
+		if ch == ' ' || ch == '\t' {
+			baseCmd = command[:i]
+			break
+		}
+	}
+
+	// Convert ignoreList to []string
+	ignored := make([]string, 0, len(ignoreList))
+	for _, item := range ignoreList {
+		if s, ok := item.(string); ok {
+			ignored = append(ignored, s)
+		}
+	}
+
+	// Check ignore list
+	for _, ig := range ignored {
+		if baseCmd == ig {
+			return false
+		}
+	}
+
+	// If capture mode is "all", capture everything (except ignored)
+	if captureMode == "all" {
+		return true
+	}
+
+	// Default to "important" mode
+	return true
 }
 
 // InitConfig creates a default config file and necessary directories
