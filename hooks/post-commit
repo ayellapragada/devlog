@@ -2,29 +2,46 @@
 # devlog post-commit hook
 # Captures git commit events and sends them to devlogd
 
-# Get devlog binary path - adjust if needed
-DEVLOG="devlog"
+# Configuration via git config or environment
+DEVLOG="${DEVLOG_BIN:-$(git config --get devlog.path 2>/dev/null || echo 'devlog')}"
+DEVLOG_ENABLED="${DEVLOG_ENABLED:-$(git config --get devlog.enabled 2>/dev/null || echo 'true')}"
 
-# Check if devlog is available
+# Early exit if disabled
+[ "$DEVLOG_ENABLED" != "true" ] && exit 0
+
+# Find devlog binary
 if ! command -v "$DEVLOG" &> /dev/null; then
-    # Try using absolute path if devlog is in the same dir as this repo
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    DEVLOG="$SCRIPT_DIR/../../bin/devlog"
+    # Check common locations
+    for path in /usr/local/bin/devlog ~/.local/bin/devlog; do
+        if [ -x "$path" ]; then
+            DEVLOG="$path"
+            break
+        fi
+    done
 
-    if ! command -v "$DEVLOG" &> /dev/null && [ ! -f "$DEVLOG" ]; then
-        # Silently exit if devlog is not found
-        exit 0
-    fi
+    # Still not found? Exit silently
+    command -v "$DEVLOG" &> /dev/null || exit 0
 fi
 
-# Capture commit information
+# Verify we're in a git repo
 REPO_PATH="$(git rev-parse --show-toplevel 2>/dev/null)"
+[ -z "$REPO_PATH" ] && exit 0
+
+# Capture branch and handle detached HEAD
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
-COMMIT_HASH="$(git rev-parse HEAD 2>/dev/null)"
+[ "$BRANCH" = "HEAD" ] && BRANCH="detached-$(git rev-parse --short HEAD 2>/dev/null)"
+
+# Capture commit info efficiently
+read -r COMMIT_HASH COMMIT_AUTHOR < <(git log -1 --format='%H %an' 2>/dev/null)
+
+# Validate we have minimum required data
+[ -z "$COMMIT_HASH" ] && exit 0
+
+# Get commit message separately (can be multiline)
 COMMIT_MESSAGE="$(git log -1 --pretty=%B 2>/dev/null)"
-COMMIT_AUTHOR="$(git log -1 --pretty=%an 2>/dev/null)"
 
 # Send to devlog in the background (don't block git)
+# Queue locally if daemon is down - this won't produce errors
 "$DEVLOG" ingest git-commit \
     --repo="$REPO_PATH" \
     --branch="$BRANCH" \

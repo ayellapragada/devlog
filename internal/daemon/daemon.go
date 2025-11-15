@@ -13,27 +13,33 @@ import (
 
 	"devlog/internal/api"
 	"devlog/internal/config"
+	"devlog/internal/queue"
+	"devlog/internal/session"
 	"devlog/internal/storage"
 )
 
 // Daemon manages the devlogd lifecycle
 type Daemon struct {
-	config  *config.Config
-	storage *storage.Storage
-	server  *http.Server
+	config         *config.Config
+	storage        *storage.Storage
+	sessionManager *session.Manager
+	server         *http.Server
 }
 
 // New creates a new Daemon instance
 func New(cfg *config.Config, store *storage.Storage) *Daemon {
+	sessionManager := session.NewManager(store)
+
 	return &Daemon{
-		config:  cfg,
-		storage: store,
+		config:         cfg,
+		storage:        store,
+		sessionManager: sessionManager,
 	}
 }
 
 // Start starts the daemon HTTP server
 func (d *Daemon) Start() error {
-	apiServer := api.NewServer(d.storage)
+	apiServer := api.NewServer(d.storage, d.sessionManager)
 	mux := apiServer.SetupRoutes()
 
 	addr := fmt.Sprintf("127.0.0.1:%d", d.config.HTTP.Port)
@@ -45,6 +51,11 @@ func (d *Daemon) Start() error {
 	// Write PID file
 	if err := d.writePIDFile(); err != nil {
 		return fmt.Errorf("write PID file: %w", err)
+	}
+
+	// Process queued events on startup
+	if err := d.processQueue(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to process queue: %v\n", err)
 	}
 
 	// Set up signal handling for graceful shutdown
@@ -69,6 +80,54 @@ func (d *Daemon) Start() error {
 		d.removePIDFile()
 		return fmt.Errorf("server error: %w", err)
 	}
+}
+
+// processQueue processes any queued events from when daemon was down
+func (d *Daemon) processQueue() error {
+	queueDir, err := config.QueueDir()
+	if err != nil {
+		return err
+	}
+
+	q, err := queue.New(queueDir)
+	if err != nil {
+		return err
+	}
+
+	queuedEvents, err := q.List()
+	if err != nil {
+		return err
+	}
+
+	if len(queuedEvents) == 0 {
+		return nil
+	}
+
+	fmt.Printf("Processing %d queued event(s) from disk...\n", len(queuedEvents))
+
+	successCount := 0
+	for _, event := range queuedEvents {
+		// Validate and insert directly into storage
+		if err := event.Validate(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: skipping invalid queued event %s: %v\n", event.ID, err)
+			continue
+		}
+
+		if err := d.storage.InsertEvent(event); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to insert queued event %s: %v\n", event.ID, err)
+			continue
+		}
+
+		// Successfully inserted - remove from queue
+		if err := q.Remove(event.ID); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to remove event %s from queue: %v\n", event.ID, err)
+		} else {
+			successCount++
+		}
+	}
+
+	fmt.Printf("Processed %d/%d queued events\n", successCount, len(queuedEvents))
+	return nil
 }
 
 // Shutdown gracefully shuts down the daemon

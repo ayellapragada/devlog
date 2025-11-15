@@ -10,8 +10,9 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	ObsidianPath string     `yaml:"obsidian_path"`
-	HTTP         HTTPConfig `yaml:"http"`
+	ObsidianPath      string     `yaml:"obsidian_path"`
+	HTTP              HTTPConfig `yaml:"http"`
+	SessionGapMinutes int        `yaml:"session_gap_minutes,omitempty"`
 }
 
 // HTTPConfig contains HTTP server settings
@@ -53,6 +54,15 @@ func DataDir() (string, error) {
 		return "", fmt.Errorf("get home directory: %w", err)
 	}
 	return filepath.Join(home, ".local", "share", "devlog"), nil
+}
+
+// QueueDir returns the queue directory path (~/.local/share/devlog/queue)
+func QueueDir() (string, error) {
+	dataDir, err := DataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dataDir, "queue"), nil
 }
 
 // Load reads and parses the config file

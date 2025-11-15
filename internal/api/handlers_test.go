@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"devlog/internal/events"
+	"devlog/internal/session"
 	"devlog/internal/storage"
 )
 
@@ -25,7 +26,8 @@ func setupTestServer(t *testing.T) (*Server, *storage.Storage) {
 		t.Fatalf("New() error: %v", err)
 	}
 
-	server := NewServer(store)
+	sessionManager := session.NewManager(store)
+	server := NewServer(store, sessionManager)
 	return server, store
 }
 
@@ -220,5 +222,201 @@ func TestSetupRoutes(t *testing.T) {
 
 	if statusW.Code != http.StatusOK {
 		t.Errorf("status route: got status %d, want %d", statusW.Code, http.StatusOK)
+	}
+}
+
+func TestSessionHandlerCreate(t *testing.T) {
+	server, store := setupTestServer(t)
+	defer store.Close()
+
+	// Create some events first
+	event1 := events.NewEvent(events.SourceGit, events.TypeCommit)
+	event1.Repo = "/path/to/repo"
+	store.InsertEvent(event1)
+
+	event2 := events.NewEvent(events.SourceGit, events.TypeCommit)
+	event2.Repo = "/path/to/repo"
+	store.InsertEvent(event2)
+
+	// Create session request
+	reqBody := map[string]interface{}{
+		"event_ids":   []string{event1.ID, event2.ID},
+		"description": "Test session",
+	}
+
+	reqJSON, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", bytes.NewReader(reqJSON))
+	w := httptest.NewRecorder()
+
+	server.SessionHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if response["ok"] != true {
+		t.Errorf("got ok=%v, want true", response["ok"])
+	}
+
+	sessionID, ok := response["session_id"].(string)
+	if !ok || sessionID == "" {
+		t.Error("session_id is missing or empty")
+	}
+
+	if response["description"] != "Test session" {
+		t.Errorf("got description=%v, want 'Test session'", response["description"])
+	}
+
+	eventCount := int(response["event_count"].(float64))
+	if eventCount != 2 {
+		t.Errorf("got event_count=%d, want 2", eventCount)
+	}
+}
+
+func TestSessionHandlerCreateEmptyEventIDs(t *testing.T) {
+	server, store := setupTestServer(t)
+	defer store.Close()
+
+	reqBody := map[string]interface{}{
+		"event_ids":   []string{},
+		"description": "Empty session",
+	}
+
+	reqJSON, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", bytes.NewReader(reqJSON))
+	w := httptest.NewRecorder()
+
+	server.SessionHandler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+	}
+
+	var response map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&response)
+
+	if response["ok"] != false {
+		t.Errorf("got ok=%v, want false", response["ok"])
+	}
+}
+
+func TestSessionHandlerCreateInvalidJSON(t *testing.T) {
+	server, store := setupTestServer(t)
+	defer store.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", bytes.NewReader([]byte("invalid json")))
+	w := httptest.NewRecorder()
+
+	server.SessionHandler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestSessionHandlerList(t *testing.T) {
+	server, store := setupTestServer(t)
+	defer store.Close()
+
+	// Create some events and sessions
+	event1 := events.NewEvent(events.SourceGit, events.TypeCommit)
+	store.InsertEvent(event1)
+
+	event2 := events.NewEvent(events.SourceGit, events.TypeCommit)
+	store.InsertEvent(event2)
+
+	// Create two sessions
+	reqBody1 := map[string]interface{}{
+		"event_ids":   []string{event1.ID},
+		"description": "Session 1",
+	}
+	reqJSON1, _ := json.Marshal(reqBody1)
+	req1 := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", bytes.NewReader(reqJSON1))
+	w1 := httptest.NewRecorder()
+	server.SessionHandler(w1, req1)
+
+	reqBody2 := map[string]interface{}{
+		"event_ids":   []string{event2.ID},
+		"description": "Session 2",
+	}
+	reqJSON2, _ := json.Marshal(reqBody2)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/sessions", bytes.NewReader(reqJSON2))
+	w2 := httptest.NewRecorder()
+	server.SessionHandler(w2, req2)
+
+	// Now list sessions
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	w := httptest.NewRecorder()
+
+	server.SessionHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	sessions, ok := response["sessions"].([]interface{})
+	if !ok {
+		t.Fatal("sessions field is missing or not an array")
+	}
+
+	if len(sessions) != 2 {
+		t.Errorf("got %d sessions, want 2", len(sessions))
+	}
+
+	count := int(response["count"].(float64))
+	if count != 2 {
+		t.Errorf("got count=%d, want 2", count)
+	}
+}
+
+func TestSessionHandlerListEmpty(t *testing.T) {
+	server, store := setupTestServer(t)
+	defer store.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+	w := httptest.NewRecorder()
+
+	server.SessionHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("got status %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var response map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	sessions, ok := response["sessions"].([]interface{})
+	if !ok {
+		t.Fatal("sessions field is missing or not an array")
+	}
+
+	if len(sessions) != 0 {
+		t.Errorf("got %d sessions, want 0", len(sessions))
+	}
+}
+
+func TestSessionHandlerInvalidMethod(t *testing.T) {
+	server, store := setupTestServer(t)
+	defer store.Close()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/sessions", nil)
+	w := httptest.NewRecorder()
+
+	server.SessionHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("got status %d, want %d", w.Code, http.StatusMethodNotAllowed)
 	}
 }
