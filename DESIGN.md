@@ -76,7 +76,7 @@ Event Sources:
 
 - git hooks ✅
 - shell hooks ✅
-- wisprflow
+- wisprflow ✅
 - (Future) GitHub merged PR polling
 
 The goal here is to keep this modular and extensible.
