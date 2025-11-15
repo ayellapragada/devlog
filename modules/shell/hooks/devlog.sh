@@ -39,6 +39,12 @@ if [ -n "$DEVLOG_BIN_PATH" ]; then
             return
         }
 
+        # Skip devlog daemon control commands to avoid consistent "always processing" messages
+        if echo "$DEVLOG_CMD" | grep -qE '(^|[[:space:]])devlog[[:space:]]+daemon[[:space:]]+(start|stop|restart|status)'; then
+            unset DEVLOG_CMD DEVLOG_CMD_START
+            return
+        fi
+
         local duration=0
         if [ -n "$DEVLOG_CMD_START" ]; then
             local end_time=$(date +%s)

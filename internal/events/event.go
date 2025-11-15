@@ -34,6 +34,7 @@ const (
 	TypeNote          = "note"
 	TypePRMerged      = "pr_merged"
 	TypeContextSwitch = "context_switch"
+	TypeTranscription = "transcription"
 	TypeOther         = "other"
 )
 
@@ -95,7 +96,7 @@ func isValidSource(source string) bool {
 
 func isValidType(eventType string) bool {
 	switch eventType {
-	case TypeCommit, TypeMerge, TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeOther:
+	case TypeCommit, TypeMerge, TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeTranscription, TypeOther:
 		return true
 	default:
 		return false

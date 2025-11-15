@@ -8,14 +8,17 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"devlog/internal/api"
 	"devlog/internal/config"
+	"devlog/internal/events"
 	"devlog/internal/queue"
 	"devlog/internal/session"
 	"devlog/internal/storage"
+	"devlog/modules/wisprflow"
 )
 
 type Daemon struct {
@@ -23,6 +26,7 @@ type Daemon struct {
 	storage        *storage.Storage
 	sessionManager *session.Manager
 	server         *http.Server
+	stopChan       chan struct{}
 }
 
 func New(cfg *config.Config, store *storage.Storage) *Daemon {
@@ -32,6 +36,7 @@ func New(cfg *config.Config, store *storage.Storage) *Daemon {
 		config:         cfg,
 		storage:        store,
 		sessionManager: sessionManager,
+		stopChan:       make(chan struct{}),
 	}
 }
 
@@ -51,6 +56,10 @@ func (d *Daemon) Start() error {
 
 	if err := d.processQueue(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to process queue: %v\n", err)
+	}
+
+	if d.config.IsModuleEnabled("wisprflow") {
+		go d.pollWisprFlow()
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -119,7 +128,124 @@ func (d *Daemon) processQueue() error {
 	return nil
 }
 
+func (d *Daemon) pollWisprFlow() {
+	modCfg, ok := d.config.GetModuleConfig("wisprflow")
+	if !ok {
+		fmt.Fprintln(os.Stderr, "Warning: wisprflow module config not found")
+		return
+	}
+
+	pollInterval := 60.0
+	if interval, ok := modCfg["poll_interval_seconds"].(float64); ok {
+		pollInterval = interval
+	}
+
+	minWords := 0.0
+	if mw, ok := modCfg["min_words"].(float64); ok {
+		minWords = mw
+	}
+
+	dbPathConfig, _ := modCfg["db_path"].(string)
+	homeDir, _ := os.UserHomeDir()
+	dbPath := wisprflow.GetDBPath(homeDir, dbPathConfig)
+
+	dataDir, err := config.DataDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: wisprflow polling failed to get data dir: %v\n", err)
+		return
+	}
+
+	ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
+	defer ticker.Stop()
+
+	fmt.Printf("Wispr Flow polling started (interval: %.0fs)\n", pollInterval)
+
+	d.doWisprFlowPoll(dbPath, dataDir, minWords)
+
+	for {
+		select {
+		case <-ticker.C:
+			d.doWisprFlowPoll(dbPath, dataDir, minWords)
+		case <-d.stopChan:
+			return
+		}
+	}
+}
+
+func (d *Daemon) doWisprFlowPoll(dbPath string, dataDir string, minWords float64) {
+	lastPoll, err := wisprflow.LoadLastPollTime(dataDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: wisprflow poll failed to load timestamp: %v\n", err)
+		return
+	}
+
+	entries, err := wisprflow.PollDatabase(dbPath, lastPoll)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: wisprflow poll failed: %v\n", err)
+		return
+	}
+
+	if len(entries) == 0 {
+		return
+	}
+
+	fmt.Printf("Wispr Flow: found %d new transcription(s)\n", len(entries))
+
+	storedCount := 0
+	for _, entry := range entries {
+		if minWords > 0 && float64(entry.NumWords) < minWords {
+			continue
+		}
+
+		text := entry.EditedText
+		if text == "" {
+			text = entry.FormattedText
+		}
+		if text == "" {
+			text = entry.ASRText
+		}
+
+		event := events.NewEvent("wisprflow", "transcription")
+		event.ID = entry.TranscriptEntityID
+		event.Timestamp = entry.Timestamp.Format(time.RFC3339)
+		event.Payload = map[string]interface{}{
+			"id":             entry.TranscriptEntityID,
+			"text":           text,
+			"asr_text":       entry.ASRText,
+			"formatted_text": entry.FormattedText,
+			"edited_text":    entry.EditedText,
+			"app":            entry.App,
+			"url":            entry.URL,
+			"duration":       entry.Duration,
+			"num_words":      entry.NumWords,
+			"status":         entry.Status,
+		}
+
+		if err := d.storage.InsertEvent(event); err != nil {
+			if !strings.Contains(err.Error(), "UNIQUE constraint failed") {
+				fmt.Fprintf(os.Stderr, "Warning: failed to store wisprflow event: %v\n", err)
+			}
+		} else {
+			storedCount++
+		}
+	}
+
+	if len(entries) > 0 {
+		lastEntry := entries[len(entries)-1]
+		nextPollTime := lastEntry.Timestamp.Add(1 * time.Millisecond)
+		if err := wisprflow.SaveLastPollTime(dataDir, nextPollTime); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save poll timestamp: %v\n", err)
+		}
+	}
+
+	if storedCount > 0 {
+		fmt.Printf("Wispr Flow: stored %d event(s)\n", storedCount)
+	}
+}
+
 func (d *Daemon) Shutdown() error {
+	close(d.stopChan)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
