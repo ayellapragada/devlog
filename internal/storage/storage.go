@@ -164,49 +164,15 @@ func (s *Storage) GetEvent(id string) (*events.Event, error) {
 		WHERE id = ?
 	`
 
-	var event events.Event
-	var payloadJSON string
-	var repo, branch sql.NullString
-
-	err := s.db.QueryRow(query, id).Scan(
-		&event.ID,
-		&event.Timestamp,
-		&event.Source,
-		&event.Type,
-		&repo,
-		&branch,
-		&payloadJSON,
-	)
-
+	event, err := s.scanEvent(s.db.QueryRow(query, id))
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("event not found: %s", id)
 	}
-
 	if err != nil {
 		return nil, fmt.Errorf("query event: %w", err)
 	}
 
-	event.Version = 1
-
-	if repo.Valid {
-		event.Repo = repo.String
-	}
-
-	if branch.Valid {
-		event.Branch = branch.String
-	}
-
-	// Parse payload JSON
-	restoredEvent, err := events.FromJSON([]byte(fmt.Sprintf(`{"v":1,"id":"%s","timestamp":"%s","source":"%s","type":"%s","payload":%s}`,
-		event.ID, event.Timestamp, event.Source, event.Type, payloadJSON)))
-	if err != nil {
-		return nil, fmt.Errorf("parse payload: %w", err)
-	}
-
-	restoredEvent.Repo = event.Repo
-	restoredEvent.Branch = event.Branch
-
-	return restoredEvent, nil
+	return event, nil
 }
 
 func (s *Storage) ListEvents(limit int, source string) ([]*events.Event, error) {
@@ -239,45 +205,11 @@ func (s *Storage) ListEvents(limit int, source string) ([]*events.Event, error) 
 	var result []*events.Event
 
 	for rows.Next() {
-		var event events.Event
-		var payloadJSON string
-		var repo, branch sql.NullString
-
-		err := rows.Scan(
-			&event.ID,
-			&event.Timestamp,
-			&event.Source,
-			&event.Type,
-			&repo,
-			&branch,
-			&payloadJSON,
-		)
-
+		event, err := s.scanEvent(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan event: %w", err)
 		}
-
-		event.Version = 1
-
-		if repo.Valid {
-			event.Repo = repo.String
-		}
-
-		if branch.Valid {
-			event.Branch = branch.String
-		}
-
-		// Parse payload JSON
-		restoredEvent, err := events.FromJSON([]byte(fmt.Sprintf(`{"v":1,"id":"%s","timestamp":"%s","source":"%s","type":"%s","payload":%s}`,
-			event.ID, event.Timestamp, event.Source, event.Type, payloadJSON)))
-		if err != nil {
-			return nil, fmt.Errorf("parse payload: %w", err)
-		}
-
-		restoredEvent.Repo = event.Repo
-		restoredEvent.Branch = event.Branch
-
-		result = append(result, restoredEvent)
+		result = append(result, event)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -294,4 +226,56 @@ func (s *Storage) Count() (int, error) {
 		return 0, fmt.Errorf("count events: %w", err)
 	}
 	return count, nil
+}
+
+func (s *Storage) scanEvent(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*events.Event, error) {
+	var event events.Event
+	var payloadJSON string
+	var repo, branch sql.NullString
+
+	err := scanner.Scan(
+		&event.ID,
+		&event.Timestamp,
+		&event.Source,
+		&event.Type,
+		&repo,
+		&branch,
+		&payloadJSON,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	event.Version = 1
+
+	if repo.Valid {
+		event.Repo = repo.String
+	}
+
+	if branch.Valid {
+		event.Branch = branch.String
+	}
+
+	restoredEvent, err := s.restoreEventPayload(&event, payloadJSON)
+	if err != nil {
+		return nil, fmt.Errorf("restore payload: %w", err)
+	}
+
+	return restoredEvent, nil
+}
+
+func (s *Storage) restoreEventPayload(event *events.Event, payloadJSON string) (*events.Event, error) {
+	restoredEvent, err := events.FromJSON([]byte(fmt.Sprintf(`{"v":1,"id":"%s","timestamp":"%s","source":"%s","type":"%s","payload":%s}`,
+		event.ID, event.Timestamp, event.Source, event.Type, payloadJSON)))
+	if err != nil {
+		return nil, err
+	}
+
+	restoredEvent.Repo = event.Repo
+	restoredEvent.Branch = event.Branch
+
+	return restoredEvent, nil
 }
