@@ -24,9 +24,9 @@ case "$SUBCOMMAND" in
         EXIT_CODE=$?
 
         if [ $EXIT_CODE -eq 0 ] && [ -n "$REPO_PATH" ]; then
-            read -r COMMIT_HASH COMMIT_AUTHOR < <(git log -1 --format='%H %an' 2>/dev/null)
+            read -r COMMIT_HASH COMMIT_AUTHOR < <(/usr/bin/git log -1 --format='%H %an' 2>/dev/null)
             if [ -n "$COMMIT_HASH" ]; then
-                COMMIT_MESSAGE="$(git log -1 --pretty=%B 2>/dev/null)"
+                COMMIT_MESSAGE="$(/usr/bin/git log -1 --pretty=%B 2>/dev/null)"
                 __devlog_capture_git_event "commit" "$REPO_PATH" "$BRANCH" \
                     --hash="$COMMIT_HASH" \
                     --message="$COMMIT_MESSAGE" \
@@ -116,8 +116,8 @@ case "$SUBCOMMAND" in
         EXIT_CODE=$?
 
         if [ $EXIT_CODE -eq 0 ] && [ -n "$REPO_PATH" ]; then
-            NEW_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
-            [ "$NEW_BRANCH" = "HEAD" ] && NEW_BRANCH="detached-$(git rev-parse --short HEAD 2>/dev/null)"
+            NEW_BRANCH="$(/usr/bin/git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+            [ "$NEW_BRANCH" = "HEAD" ] && NEW_BRANCH="detached-$(/usr/bin/git rev-parse --short HEAD 2>/dev/null)"
 
             if [ "$OLD_BRANCH" != "$NEW_BRANCH" ]; then
                 __devlog_capture_git_event "checkout" "$REPO_PATH" "$NEW_BRANCH" \

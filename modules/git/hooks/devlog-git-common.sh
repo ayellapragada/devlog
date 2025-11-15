@@ -8,7 +8,8 @@ __devlog_find_bin() {
         return 0
     fi
 
-    for path in /usr/local/bin/devlog ~/.local/bin/devlog ~/bin/devlog ./bin/devlog; do
+    local home_dir="${HOME}"
+    for path in /usr/local/bin/devlog "${home_dir}/.local/bin/devlog" "${home_dir}/bin/devlog" ./bin/devlog; do
         if [ -x "$path" ]; then
             echo "$path"
             return 0
@@ -19,9 +20,9 @@ __devlog_find_bin() {
 }
 
 __devlog_get_repo_info() {
-    REPO_PATH="$(git rev-parse --show-toplevel 2>/dev/null)"
-    BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
-    [ "$BRANCH" = "HEAD" ] && BRANCH="detached-$(git rev-parse --short HEAD 2>/dev/null)"
+    REPO_PATH="$(/usr/bin/git rev-parse --show-toplevel 2>/dev/null)"
+    BRANCH="$(/usr/bin/git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+    [ "$BRANCH" = "HEAD" ] && BRANCH="detached-$(/usr/bin/git rev-parse --short HEAD 2>/dev/null)"
 }
 
 __devlog_capture_git_event() {
