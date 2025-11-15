@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 
 	"devlog/internal/api"
 	"devlog/internal/config"
+	"devlog/internal/logger"
 	"devlog/internal/poller"
 	"devlog/internal/queue"
 	"devlog/internal/session"
@@ -26,18 +28,21 @@ type Daemon struct {
 	sessionManager *session.Manager
 	pollerManager  *poller.Manager
 	server         *http.Server
+	logger         *logger.Logger
 	stopChan       chan struct{}
 }
 
 func New(cfg *config.Config, store *storage.Storage) *Daemon {
 	sessionManager := session.NewManager(store)
-	pollerManager := poller.NewManager(store)
+	log := logger.Default()
+	pollerManager := poller.NewManager(store, log)
 
 	return &Daemon{
 		config:         cfg,
 		storage:        store,
 		sessionManager: sessionManager,
 		pollerManager:  pollerManager,
+		logger:         log,
 		stopChan:       make(chan struct{}),
 	}
 }
@@ -57,7 +62,7 @@ func (d *Daemon) Start() error {
 	}
 
 	if err := d.processQueue(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to process queue: %v\n", err)
+		d.logger.Warn("failed to process queue", slog.String("error", err.Error()))
 	}
 
 	d.setupPollers()
@@ -68,7 +73,10 @@ func (d *Daemon) Start() error {
 
 	errChan := make(chan error, 1)
 	go func() {
-		fmt.Printf("devlogd started on %s\n", addr)
+		d.logger.Info("daemon started",
+			slog.String("addr", addr),
+			slog.Int("port", d.config.HTTP.Port),
+			slog.Int("pid", os.Getpid()))
 		if err := d.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errChan <- err
 		}
@@ -76,9 +84,10 @@ func (d *Daemon) Start() error {
 
 	select {
 	case <-sigChan:
-		fmt.Println("\nShutting down gracefully...")
+		d.logger.Info("shutdown signal received")
 		return d.Shutdown()
 	case err := <-errChan:
+		d.logger.Error("server error", slog.String("error", err.Error()))
 		d.removePIDFile()
 		return fmt.Errorf("server error: %w", err)
 	}
@@ -104,30 +113,41 @@ func (d *Daemon) processQueue() error {
 		return nil
 	}
 
-	fmt.Printf("Processing %d queued event(s) from disk...\n", len(queuedEvents))
+	d.logger.Info("processing queued events", slog.Int("count", len(queuedEvents)))
 
 	successCount := 0
 	for _, event := range queuedEvents {
 		if err := event.Validate(); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: skipping invalid queued event %s: %v\n", event.ID, err)
+			d.logger.Warn("skipping invalid queued event",
+				slog.String("event_id", event.ID),
+				slog.String("error", err.Error()))
 			continue
 		}
 
 		if err := d.storage.InsertEvent(event); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to insert queued event %s: %v\n", event.ID, err)
+			d.logger.Warn("failed to insert queued event",
+				slog.String("event_id", event.ID),
+				slog.String("error", err.Error()))
 			continue
 		}
 
-		fmt.Printf("Ingested queued event: source=%s type=%s id=%s\n", event.Source, event.Type, event.ID)
+		d.logger.Debug("ingested queued event",
+			slog.String("source", event.Source),
+			slog.String("type", event.Type),
+			slog.String("event_id", event.ID))
 
 		if err := q.Remove(event.ID); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to remove event %s from queue: %v\n", event.ID, err)
+			d.logger.Warn("failed to remove event from queue",
+				slog.String("event_id", event.ID),
+				slog.String("error", err.Error()))
 		} else {
 			successCount++
 		}
 	}
 
-	fmt.Printf("Processed %d/%d queued events\n", successCount, len(queuedEvents))
+	d.logger.Info("completed queue processing",
+		slog.Int("successful", successCount),
+		slog.Int("total", len(queuedEvents)))
 	return nil
 }
 
@@ -135,7 +155,7 @@ func (d *Daemon) setupPollers() {
 	if d.config.IsModuleEnabled("wisprflow") {
 		modCfg, ok := d.config.GetModuleConfig("wisprflow")
 		if !ok {
-			fmt.Fprintln(os.Stderr, "Warning: wisprflow module config not found")
+			d.logger.Warn("wisprflow module config not found")
 			return
 		}
 
@@ -155,7 +175,8 @@ func (d *Daemon) setupPollers() {
 
 		dataDir, err := config.DataDir()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: wisprflow polling failed to get data dir: %v\n", err)
+			d.logger.Warn("wisprflow polling failed to get data dir",
+				slog.String("error", err.Error()))
 			return
 		}
 
@@ -167,15 +188,18 @@ func (d *Daemon) setupPollers() {
 		)
 		d.pollerManager.Register(wisprPoller)
 
-		fmt.Printf("Wispr Flow polling started (interval: %.0fs)\n", pollInterval)
+		d.logger.Info("wispr flow polling started",
+			slog.Float64("interval_seconds", pollInterval))
 	}
 }
 
 func (d *Daemon) Shutdown() error {
+	d.logger.Info("shutting down daemon")
 	close(d.stopChan)
 
 	if d.pollerManager != nil {
 		d.pollerManager.Stop()
+		d.logger.Debug("poller manager stopped")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -183,18 +207,22 @@ func (d *Daemon) Shutdown() error {
 
 	if d.server != nil {
 		if err := d.server.Shutdown(ctx); err != nil {
+			d.logger.Error("failed to shutdown server", slog.String("error", err.Error()))
 			return fmt.Errorf("shutdown server: %w", err)
 		}
+		d.logger.Debug("http server stopped")
 	}
 
 	if d.storage != nil {
 		if err := d.storage.Close(); err != nil {
+			d.logger.Error("failed to close storage", slog.String("error", err.Error()))
 			return fmt.Errorf("close storage: %w", err)
 		}
+		d.logger.Debug("storage closed")
 	}
 
 	d.removePIDFile()
-	fmt.Println("Daemon stopped")
+	d.logger.Info("daemon stopped successfully")
 	return nil
 }
 

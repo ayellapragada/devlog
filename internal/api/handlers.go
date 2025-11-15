@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"devlog/internal/config"
 	"devlog/internal/events"
+	"devlog/internal/logger"
 	"devlog/internal/session"
 	"devlog/internal/storage"
 )
@@ -17,6 +19,7 @@ type Server struct {
 	storage        *storage.Storage
 	sessionManager *session.Manager
 	config         *config.Config
+	logger         *logger.Logger
 	startTime      time.Time
 }
 
@@ -25,6 +28,7 @@ func NewServer(storage *storage.Storage, sessionManager *session.Manager, cfg *c
 		storage:        storage,
 		sessionManager: sessionManager,
 		config:         cfg,
+		logger:         logger.Default(),
 		startTime:      time.Now(),
 	}
 }
@@ -56,6 +60,9 @@ func (s *Server) IngestHandler(w http.ResponseWriter, r *http.Request) {
 	if event.Source == events.SourceShell && event.Type == events.TypeCommand {
 		if command, ok := event.Payload["command"].(string); ok {
 			if !s.config.ShouldCaptureCommand(command) {
+				s.logger.Debug("command filtered",
+					slog.String("command", command),
+					slog.String("event_id", event.ID))
 				respondJSON(w, map[string]interface{}{
 					"ok":       true,
 					"filtered": true,
@@ -66,11 +73,18 @@ func (s *Server) IngestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.storage.InsertEvent(event); err != nil {
+		s.logger.Error("failed to store event",
+			slog.String("event_id", event.ID),
+			slog.String("source", event.Source),
+			slog.String("error", err.Error()))
 		respondError(w, fmt.Sprintf("Failed to store event: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Printf("Ingested event: source=%s type=%s id=%s\n", event.Source, event.Type, event.ID)
+	s.logger.Info("event ingested",
+		slog.String("source", event.Source),
+		slog.String("type", event.Type),
+		slog.String("event_id", event.ID))
 
 	respondJSON(w, map[string]interface{}{
 		"ok":       true,

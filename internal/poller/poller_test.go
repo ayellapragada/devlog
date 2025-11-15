@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"devlog/internal/events"
+	"devlog/internal/logger"
 )
 
 type mockStorage struct {
@@ -68,7 +69,8 @@ func (m *mockPoller) getPollCount() int {
 
 func TestNewManager(t *testing.T) {
 	storage := &mockStorage{}
-	manager := NewManager(storage)
+	log := logger.Default()
+	manager := NewManager(storage, log)
 
 	if manager == nil {
 		t.Fatal("NewManager returned nil")
@@ -85,7 +87,8 @@ func TestNewManager(t *testing.T) {
 
 func TestManagerRegister(t *testing.T) {
 	storage := &mockStorage{}
-	manager := NewManager(storage)
+	log := logger.Default()
+	manager := NewManager(storage, log)
 
 	poller1 := &mockPoller{name: "test1", interval: time.Second}
 	poller2 := &mockPoller{name: "test2", interval: time.Second}
@@ -100,7 +103,8 @@ func TestManagerRegister(t *testing.T) {
 
 func TestManagerStartStop(t *testing.T) {
 	storage := &mockStorage{}
-	manager := NewManager(storage)
+	log := logger.Default()
+	manager := NewManager(storage, log)
 
 	event1 := events.NewEvent("test", "test_type")
 	event1.Payload["data"] = "test1"
@@ -133,7 +137,8 @@ func TestManagerStartStop(t *testing.T) {
 
 func TestManagerDoPoll(t *testing.T) {
 	storage := &mockStorage{}
-	manager := NewManager(storage)
+	log := logger.Default()
+	manager := NewManager(storage, log)
 
 	event1 := events.NewEvent("test", "type1")
 	event1.Payload["id"] = "1"
@@ -165,7 +170,8 @@ func TestManagerDoPoll(t *testing.T) {
 
 func TestManagerDoPollWithStorageError(t *testing.T) {
 	storage := &mockStorage{shouldError: true}
-	manager := NewManager(storage)
+	log := logger.Default()
+	manager := NewManager(storage, log)
 
 	event := events.NewEvent("test", "type")
 
@@ -185,7 +191,8 @@ func TestManagerDoPollWithStorageError(t *testing.T) {
 
 func TestManagerDoPollWithEmptyEvents(t *testing.T) {
 	storage := &mockStorage{}
-	manager := NewManager(storage)
+	log := logger.Default()
+	manager := NewManager(storage, log)
 
 	poller := &mockPoller{
 		name:           "test",
@@ -203,7 +210,8 @@ func TestManagerDoPollWithEmptyEvents(t *testing.T) {
 
 func TestManagerMultiplePollers(t *testing.T) {
 	storage := &mockStorage{}
-	manager := NewManager(storage)
+	log := logger.Default()
+	manager := NewManager(storage, log)
 
 	event1 := events.NewEvent("poller1", "type1")
 	event2 := events.NewEvent("poller2", "type2")

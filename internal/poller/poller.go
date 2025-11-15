@@ -1,9 +1,11 @@
 package poller
 
 import (
+	"log/slog"
 	"time"
 
 	"devlog/internal/events"
+	"devlog/internal/logger"
 )
 
 type Poller interface {
@@ -15,6 +17,7 @@ type Poller interface {
 type Manager struct {
 	pollers   []Poller
 	storage   EventStorage
+	logger    *logger.Logger
 	stopChans map[string]chan struct{}
 }
 
@@ -22,9 +25,10 @@ type EventStorage interface {
 	InsertEvent(event *events.Event) error
 }
 
-func NewManager(storage EventStorage) *Manager {
+func NewManager(storage EventStorage, log *logger.Logger) *Manager {
 	return &Manager{
 		storage:   storage,
+		logger:    log,
 		stopChans: make(map[string]chan struct{}),
 	}
 }
@@ -64,14 +68,33 @@ func (m *Manager) runPoller(poller Poller, stopChan chan struct{}) {
 }
 
 func (m *Manager) doPoll(poller Poller) {
+	pollerLogger := m.logger.With(slog.String("poller", poller.Name()))
+
 	events, err := poller.Poll()
 	if err != nil {
+		pollerLogger.Error("poll failed", slog.String("error", err.Error()))
 		return
 	}
 
+	if len(events) == 0 {
+		pollerLogger.Debug("no new events")
+		return
+	}
+
+	pollerLogger.Debug("poll completed", slog.Int("event_count", len(events)))
+
+	successCount := 0
 	for _, event := range events {
 		if err := m.storage.InsertEvent(event); err != nil {
+			pollerLogger.Error("failed to insert event",
+				slog.String("event_id", event.ID),
+				slog.String("error", err.Error()))
 			continue
 		}
+		successCount++
 	}
+
+	pollerLogger.Info("events stored",
+		slog.Int("successful", successCount),
+		slog.Int("total", len(events)))
 }
