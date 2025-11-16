@@ -10,6 +10,7 @@ import (
 	"devlog/internal/modules"
 )
 
+//go:embed hooks/devlog.sh
 var devlogShellScript string
 
 type Module struct{}

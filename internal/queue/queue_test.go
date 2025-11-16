@@ -200,29 +200,3 @@ func TestListIgnoresInvalidFiles(t *testing.T) {
 		t.Errorf("got %d events, want 0 (should ignore invalid files)", len(queued))
 	}
 }
-
-func TestContains(t *testing.T) {
-	tests := []struct {
-		name   string
-		s      string
-		substr string
-		want   bool
-	}{
-		{"exact match", "hello", "hello", true},
-		{"substring at start", "hello world", "hello", true},
-		{"substring in middle", "hello world", "lo wo", true},
-		{"substring at end", "hello world", "world", true},
-		{"not found", "hello", "xyz", false},
-		{"empty substring", "hello", "", false},
-		{"empty string", "", "hello", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := contains(tt.s, tt.substr)
-			if got != tt.want {
-				t.Errorf("contains(%q, %q) = %v, want %v", tt.s, tt.substr, got, tt.want)
-			}
-		})
-	}
-}

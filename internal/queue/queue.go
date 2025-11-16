@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"devlog/internal/events"
@@ -19,9 +20,13 @@ func New(queueDir string) (*Queue, error) {
 		return nil, fmt.Errorf("create queue directory: %w", err)
 	}
 
-	return &Queue{
+	q := &Queue{
 		dir: queueDir,
-	}, nil
+	}
+
+	q.cleanupOrphanedTmpFiles()
+
+	return q, nil
 }
 
 func (q *Queue) Enqueue(event *events.Event) error {
@@ -39,11 +44,25 @@ func (q *Queue) Enqueue(event *events.Event) error {
 	}
 
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename queue file: %w", err)
 	}
 
 	return nil
+}
+
+func (q *Queue) cleanupOrphanedTmpFiles() {
+	entries, err := os.ReadDir(q.dir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".tmp" {
+			path := filepath.Join(q.dir, entry.Name())
+			_ = os.Remove(path)
+		}
+	}
 }
 
 func (q *Queue) List() ([]*events.Event, error) {
@@ -95,7 +114,7 @@ func (q *Queue) Remove(eventID string) error {
 			continue
 		}
 
-		if contains(filename, eventID) {
+		if strings.Contains(filename, eventID) {
 			path := filepath.Join(q.dir, filename)
 			if err := os.Remove(path); err != nil {
 				return fmt.Errorf("remove queue file: %w", err)
@@ -141,18 +160,4 @@ func (q *Queue) Clear() error {
 	}
 
 	return nil
-}
-
-func contains(s, substr string) bool {
-	return len(substr) > 0 && len(s) >= len(substr) &&
-		(s == substr || len(s) > len(substr) && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

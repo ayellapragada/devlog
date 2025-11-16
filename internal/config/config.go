@@ -13,8 +13,6 @@ type Config struct {
 	HTTP              HTTPConfig              `yaml:"http"`
 	SessionGapMinutes int                     `yaml:"session_gap_minutes,omitempty"`
 	Modules           map[string]ModuleConfig `yaml:"modules,omitempty"`
-
-	Shell ShellConfig `yaml:"shell,omitempty"`
 }
 
 type ModuleConfig struct {
@@ -24,12 +22,6 @@ type ModuleConfig struct {
 
 type HTTPConfig struct {
 	Port int `yaml:"port"`
-}
-
-type ShellConfig struct {
-	Enabled     bool     `yaml:"enabled"`
-	CaptureMode string   `yaml:"capture_mode,omitempty"`
-	IgnoreList  []string `yaml:"ignore_list,omitempty"`
 }
 
 func DefaultConfig() *Config {
@@ -175,17 +167,12 @@ func (c *Config) SetModuleConfig(moduleName string, config map[string]interface{
 }
 
 func (c *Config) ShouldCaptureCommand(command string) bool {
-	if c.IsModuleEnabled("shell") {
-		shellCfg, ok := c.GetModuleConfig("shell")
-		if ok {
-			captureMode, _ := shellCfg["capture_mode"].(string)
-			ignoreList, _ := shellCfg["ignore_list"].([]interface{})
-
-			return shouldCaptureWithConfig(command, captureMode, ignoreList)
-		}
+	if !c.IsModuleEnabled("shell") {
+		return false
 	}
 
-	if !c.Shell.Enabled {
+	shellCfg, ok := c.GetModuleConfig("shell")
+	if !ok {
 		return false
 	}
 
@@ -197,51 +184,19 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 		}
 	}
 
-	if c.Shell.CaptureMode == "all" {
-		for _, ignored := range c.Shell.IgnoreList {
-			if baseCmd == ignored {
-				return false
-			}
-		}
-		return true
+	captureMode, _ := shellCfg["capture_mode"].(string)
+	if captureMode == "" {
+		captureMode = "important"
 	}
 
-	for _, ignored := range c.Shell.IgnoreList {
-		if baseCmd == ignored {
+	ignoreListInterface, _ := shellCfg["ignore_list"].([]interface{})
+	for _, item := range ignoreListInterface {
+		if ignored, ok := item.(string); ok && baseCmd == ignored {
 			return false
 		}
 	}
 
-	return true
-}
-
-func shouldCaptureWithConfig(command string, captureMode string, ignoreList []interface{}) bool {
-	baseCmd := command
-	for i, ch := range command {
-		if ch == ' ' || ch == '\t' {
-			baseCmd = command[:i]
-			break
-		}
-	}
-
-	ignored := make([]string, 0, len(ignoreList))
-	for _, item := range ignoreList {
-		if s, ok := item.(string); ok {
-			ignored = append(ignored, s)
-		}
-	}
-
-	for _, ig := range ignored {
-		if baseCmd == ig {
-			return false
-		}
-	}
-
-	if captureMode == "all" {
-		return true
-	}
-
-	return true
+	return captureMode == "all"
 }
 
 func InitConfig() error {
