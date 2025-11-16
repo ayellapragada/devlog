@@ -37,20 +37,26 @@ func run() error {
 	case "status":
 		verbose := false
 		limit := 10
+		source := ""
 
 		for i := 2; i < len(os.Args); i++ {
-			if os.Args[i] == "--verbose" {
+			if os.Args[i] == "--verbose" || os.Args[i] == "-v" {
 				verbose = true
-			} else if os.Args[i] == "-n" {
+			} else if os.Args[i] == "-n" || os.Args[i] == "--number" {
 				if i+1 < len(os.Args) {
 					if n, err := fmt.Sscanf(os.Args[i+1], "%d", &limit); err == nil && n == 1 {
 						i++
 					}
 				}
+			} else if os.Args[i] == "-s" || os.Args[i] == "--source" {
+				if i+1 < len(os.Args) {
+					source = os.Args[i+1]
+					i++
+				}
 			}
 		}
 
-		return commands.Status(verbose, limit)
+		return commands.Status(verbose, limit, source)
 	case "flush":
 		return commands.Flush()
 	case "session":
@@ -81,7 +87,7 @@ func printUsage() {
 	fmt.Println("  devlog daemon start                  Start the daemon")
 	fmt.Println("  devlog daemon stop                   Stop the daemon")
 	fmt.Println("  devlog daemon status                 Check daemon status")
-	fmt.Println("  devlog status [--verbose] [-n N]     Show recent events")
+	fmt.Println("  devlog status [-v|--verbose] [-n|--number N] [-s|--source SOURCE]  Show recent events")
 	fmt.Println("  devlog session create --events <ids> Create session from event IDs")
 	fmt.Println("  devlog session list                  List all sessions")
 	fmt.Println("  devlog help                          Show this help message")

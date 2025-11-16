@@ -14,7 +14,7 @@ import (
 	"devlog/internal/storage"
 )
 
-func Status(verbose bool, limit int) error {
+func Status(verbose bool, limit int, source string) error {
 	_, err := config.Load()
 	if err != nil {
 		return err
@@ -37,17 +37,25 @@ func Status(verbose bool, limit int) error {
 		limit = 10
 	}
 
-	recentEvents, err := store.ListEvents(limit, "")
+	recentEvents, err := store.ListEvents(limit, source)
 	if err != nil {
 		return err
 	}
 
 	if len(recentEvents) == 0 {
-		fmt.Println("No events yet")
+		if source != "" {
+			fmt.Printf("No events from source '%s'\n", source)
+		} else {
+			fmt.Println("No events yet")
+		}
 		return nil
 	}
 
-	fmt.Printf("Recent events (showing last %d):\n\n", len(recentEvents))
+	if source != "" {
+		fmt.Printf("Recent events from source '%s' (showing last %d):\n\n", source, len(recentEvents))
+	} else {
+		fmt.Printf("Recent events (showing last %d):\n\n", len(recentEvents))
+	}
 
 	for _, event := range recentEvents {
 		if verbose {

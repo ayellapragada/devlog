@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(go build:*)",
+      "Bash(./devlog:*)",
+      "Bash(./devlog help)"
     ],
     "deny": [],
     "ask": []
