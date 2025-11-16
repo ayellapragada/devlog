@@ -13,22 +13,38 @@ import (
 	"devlog/modules/wisprflow"
 )
 
+func init() {
+	RegisterCommand("poll", &CommandDefinition{
+		Name:        "poll",
+		Description: "Manually poll a module for events (developer/debug command)",
+		Usage:       "devlog poll <module>",
+		Examples: []string{
+			"devlog poll wisprflow",
+			"devlog poll clipboard",
+		},
+	})
+}
+
 func Poll() error {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: devlog poll <module>")
-		fmt.Println()
-		fmt.Println("Available modules:")
-		fmt.Println("  wisprflow  - Poll Wispr Flow database for new transcriptions")
+		ShowHelp([]string{"poll"})
 		return fmt.Errorf("missing module name")
 	}
 
 	moduleName := os.Args[2]
 
+	if moduleName == "help" {
+		ShowHelp([]string{"poll"})
+		return nil
+	}
+
 	switch moduleName {
 	case "wisprflow":
 		return pollWisprFlow()
 	default:
-		return fmt.Errorf("unknown module: %s (only 'wisprflow' is currently supported)", moduleName)
+		fmt.Fprintf(os.Stderr, "Unknown module: %s\n\n", moduleName)
+		ShowHelp([]string{"poll"})
+		return fmt.Errorf("unknown module: %s", moduleName)
 	}
 }
 

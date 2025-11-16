@@ -8,26 +8,68 @@ import (
 	"devlog/internal/modules"
 )
 
+func init() {
+	RegisterCommand("module", &CommandDefinition{
+		Name:        "module",
+		Description: "Manage devlog modules",
+		Usage:       "devlog module <subcommand>",
+		Subcommands: map[string]*CommandDefinition{
+			"list": {
+				Name:        "list",
+				Description: "List all available modules and their status",
+				Usage:       "devlog module list",
+				Examples: []string{
+					"devlog module list",
+				},
+			},
+			"install": {
+				Name:        "install",
+				Description: "Install and enable a module",
+				Usage:       "devlog module install <name>",
+				Examples: []string{
+					"devlog module install git",
+					"devlog module install shell",
+				},
+			},
+			"uninstall": {
+				Name:        "uninstall",
+				Description: "Uninstall and disable a module",
+				Usage:       "devlog module uninstall <name>",
+				Examples: []string{
+					"devlog module uninstall git",
+				},
+			},
+		},
+	})
+}
+
 func Module() error {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage:")
-		fmt.Println("  devlog module list")
-		fmt.Println("  devlog module install <name>")
-		fmt.Println("  devlog module uninstall <name>")
+		ShowHelp([]string{"module"})
 		return fmt.Errorf("missing module subcommand")
 	}
 
 	subcommand := os.Args[2]
 
+	if subcommand == "help" {
+		ShowHelp([]string{"module"})
+		return nil
+	}
+
 	switch subcommand {
 	case "list":
+		if len(os.Args) > 3 && os.Args[3] == "help" {
+			ShowHelp([]string{"module", "list"})
+			return nil
+		}
 		return moduleList()
 	case "install", "init":
 		return moduleInstall()
 	case "uninstall":
 		return moduleUninstall()
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown module subcommand: %s\n", subcommand)
+		fmt.Fprintf(os.Stderr, "Unknown module subcommand: %s\n\n", subcommand)
+		ShowHelp([]string{"module"})
 		return fmt.Errorf("unknown module subcommand: %s", subcommand)
 	}
 }
@@ -77,6 +119,11 @@ func moduleInstall() error {
 
 	moduleName := os.Args[3]
 
+	if moduleName == "help" {
+		ShowHelp([]string{"module", "install"})
+		return nil
+	}
+
 	mod, err := modules.Get(moduleName)
 	if err != nil {
 		return fmt.Errorf("module not found: %s", moduleName)
@@ -125,6 +172,11 @@ func moduleUninstall() error {
 	}
 
 	moduleName := os.Args[3]
+
+	if moduleName == "help" {
+		ShowHelp([]string{"module", "uninstall"})
+		return nil
+	}
 
 	mod, err := modules.Get(moduleName)
 	if err != nil {

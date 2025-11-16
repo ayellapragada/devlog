@@ -14,23 +14,53 @@ import (
 	"devlog/internal/queue"
 )
 
+func init() {
+	RegisterCommand("ingest", &CommandDefinition{
+		Name:        "ingest",
+		Description: "Manually ingest an event (developer/debug command)",
+		Usage:       "devlog ingest <subcommand> [flags]",
+		Subcommands: map[string]*CommandDefinition{
+			"git-commit": {
+				Name:        "git-commit",
+				Description: "Ingest a git commit event (used by git hooks)",
+				Usage:       "devlog ingest git-commit [flags]",
+				Examples: []string{
+					"devlog ingest git-commit",
+				},
+			},
+			"shell-command": {
+				Name:        "shell-command",
+				Description: "Ingest a shell command event (used by shell hooks)",
+				Usage:       "devlog ingest shell-command [flags]",
+				Examples: []string{
+					"devlog ingest shell-command",
+				},
+			},
+		},
+	})
+}
+
 func Ingest() error {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage:")
-		fmt.Println("  devlog ingest git-event [flags]")
-		fmt.Println("  devlog ingest shell-command [flags]")
+		ShowHelp([]string{"ingest"})
 		return fmt.Errorf("missing ingest subcommand")
 	}
 
 	subcommand := os.Args[2]
 
+	if subcommand == "help" {
+		ShowHelp([]string{"ingest"})
+		return nil
+	}
+
 	switch subcommand {
-	case "git-event":
+	case "git-event", "git-commit":
 		return ingestGitEvent()
 	case "shell-command":
 		return ingestShellCommand()
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown ingest subcommand: %s\n", subcommand)
+		fmt.Fprintf(os.Stderr, "Unknown ingest subcommand: %s\n\n", subcommand)
+		ShowHelp([]string{"ingest"})
 		return fmt.Errorf("unknown ingest subcommand: %s", subcommand)
 	}
 }

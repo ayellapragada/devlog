@@ -19,11 +19,20 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		printUsage()
+		commands.ShowHelp([]string{})
 		return nil
 	}
 
 	command := os.Args[1]
+
+	if command == "help" {
+		if len(os.Args) > 2 {
+			commands.ShowHelp(os.Args[2:])
+		} else {
+			commands.ShowHelp([]string{})
+		}
+		return nil
+	}
 
 	switch command {
 	case "init":
@@ -40,7 +49,10 @@ func run() error {
 		source := ""
 
 		for i := 2; i < len(os.Args); i++ {
-			if os.Args[i] == "--verbose" || os.Args[i] == "-v" {
+			if os.Args[i] == "help" {
+				commands.ShowHelp([]string{"status"})
+				return nil
+			} else if os.Args[i] == "--verbose" || os.Args[i] == "-v" {
 				verbose = true
 			} else if os.Args[i] == "-n" || os.Args[i] == "--number" {
 				if i+1 < len(os.Args) {
@@ -65,36 +77,9 @@ func run() error {
 		return commands.Config()
 	case "module":
 		return commands.Module()
-	case "help":
-		printUsage()
-		return nil
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", command)
-		printUsage()
+		commands.ShowHelp([]string{})
 		return fmt.Errorf("unknown command: %s", command)
 	}
-}
-
-func printUsage() {
-	fmt.Println("DevLog - Development journaling system")
-	fmt.Println()
-	fmt.Println("Usage:")
-	fmt.Println("  devlog init                          Initialize config and database")
-	fmt.Println("  devlog config status                 Show configuration status")
-	fmt.Println("  devlog module list                   List available modules")
-	fmt.Println("  devlog module install <name>         Install and enable a module")
-	fmt.Println("  devlog module uninstall <name>       Uninstall and disable a module")
-	fmt.Println("  devlog daemon start                  Start the daemon")
-	fmt.Println("  devlog daemon stop                   Stop the daemon")
-	fmt.Println("  devlog daemon status                 Check daemon status")
-	fmt.Println("  devlog status [-v|--verbose] [-n|--number N] [-s|--source SOURCE]  Show recent events")
-	fmt.Println("  devlog session create --events <ids> Create session from event IDs")
-	fmt.Println("  devlog session list                  List all sessions")
-	fmt.Println("  devlog help                          Show this help message")
-	fmt.Println()
-	fmt.Println("Developer/Debug Commands:")
-	fmt.Println("  devlog ingest git-commit [flags]     Ingest a git commit event (used by hooks)")
-	fmt.Println("  devlog ingest shell-command [flags]  Ingest a shell command event (used by hooks)")
-	fmt.Println("  devlog poll <module>                 Manually poll a module (for testing)")
-	fmt.Println("  devlog flush                         Process queued events")
 }

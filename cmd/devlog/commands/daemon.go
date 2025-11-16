@@ -14,25 +14,89 @@ import (
 	"devlog/internal/storage"
 )
 
+func init() {
+	RegisterCommand("daemon", &CommandDefinition{
+		Name:        "daemon",
+		Description: "Manage the devlog daemon process",
+		Usage:       "devlog daemon <subcommand>",
+		Subcommands: map[string]*CommandDefinition{
+			"start": {
+				Name:        "start",
+				Description: "Start the devlog daemon",
+				Usage:       "devlog daemon start",
+				Examples: []string{
+					"devlog daemon start",
+				},
+			},
+			"stop": {
+				Name:        "stop",
+				Description: "Stop the devlog daemon",
+				Usage:       "devlog daemon stop",
+				Examples: []string{
+					"devlog daemon stop",
+				},
+			},
+			"restart": {
+				Name:        "restart",
+				Description: "Restart the devlog daemon",
+				Usage:       "devlog daemon restart",
+				Examples: []string{
+					"devlog daemon restart",
+				},
+			},
+			"status": {
+				Name:        "status",
+				Description: "Check the status of the devlog daemon",
+				Usage:       "devlog daemon status",
+				Examples: []string{
+					"devlog daemon status",
+				},
+			},
+		},
+	})
+}
+
 func Daemon() error {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: devlog daemon [start|stop|restart|status]")
+		ShowHelp([]string{"daemon"})
 		return fmt.Errorf("missing daemon subcommand")
 	}
 
 	subcommand := os.Args[2]
 
+	if subcommand == "help" {
+		ShowHelp([]string{"daemon"})
+		return nil
+	}
+
 	switch subcommand {
 	case "start":
+		if len(os.Args) > 3 && os.Args[3] == "help" {
+			ShowHelp([]string{"daemon", "start"})
+			return nil
+		}
 		return daemonStart()
 	case "stop":
+		if len(os.Args) > 3 && os.Args[3] == "help" {
+			ShowHelp([]string{"daemon", "stop"})
+			return nil
+		}
 		return daemonStop()
 	case "restart":
+		if len(os.Args) > 3 && os.Args[3] == "help" {
+			ShowHelp([]string{"daemon", "restart"})
+			return nil
+		}
 		return daemonRestart()
 	case "status":
+		if len(os.Args) > 3 && os.Args[3] == "help" {
+			ShowHelp([]string{"daemon", "status"})
+			return nil
+		}
 		return daemonStatus()
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown daemon subcommand: %s\n", subcommand)
+		fmt.Fprintf(os.Stderr, "Unknown daemon subcommand: %s\n\n", subcommand)
+		ShowHelp([]string{"daemon"})
 		return fmt.Errorf("unknown daemon subcommand: %s", subcommand)
 	}
 }

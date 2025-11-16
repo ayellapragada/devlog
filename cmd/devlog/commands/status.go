@@ -14,6 +14,35 @@ import (
 	"devlog/internal/storage"
 )
 
+func init() {
+	RegisterCommand("status", &CommandDefinition{
+		Name:        "status",
+		Description: "Show recent events from the devlog",
+		Usage:       "devlog status [flags]",
+		Flags: []FlagDefinition{
+			{Short: "-v", Long: "--verbose", Description: "Show detailed event information"},
+			{Short: "-n", Long: "--number", Description: "Number of events to display (default: 10)"},
+			{Short: "-s", Long: "--source", Description: "Filter events by source module"},
+		},
+		Examples: []string{
+			"devlog status",
+			"devlog status -v",
+			"devlog status -n 20",
+			"devlog status -s git",
+			"devlog status -v -n 5 -s shell",
+		},
+	})
+
+	RegisterCommand("flush", &CommandDefinition{
+		Name:        "flush",
+		Description: "Process all queued events (developer/debug command)",
+		Usage:       "devlog flush",
+		Examples: []string{
+			"devlog flush",
+		},
+	})
+}
+
 func Status(verbose bool, limit int, source string) error {
 	_, err := config.Load()
 	if err != nil {

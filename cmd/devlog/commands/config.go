@@ -8,20 +8,47 @@ import (
 	"devlog/internal/modules"
 )
 
+func init() {
+	RegisterCommand("config", &CommandDefinition{
+		Name:        "config",
+		Description: "Manage devlog configuration",
+		Usage:       "devlog config <subcommand>",
+		Subcommands: map[string]*CommandDefinition{
+			"status": {
+				Name:        "status",
+				Description: "Show current configuration status and enabled modules",
+				Usage:       "devlog config status",
+				Examples: []string{
+					"devlog config status",
+				},
+			},
+		},
+	})
+}
+
 func Config() error {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage:")
-		fmt.Println("  devlog config status")
+		ShowHelp([]string{"config"})
 		return fmt.Errorf("missing config subcommand")
 	}
 
 	subcommand := os.Args[2]
 
+	if subcommand == "help" {
+		ShowHelp([]string{"config"})
+		return nil
+	}
+
 	switch subcommand {
 	case "status":
+		if len(os.Args) > 3 && os.Args[3] == "help" {
+			ShowHelp([]string{"config", "status"})
+			return nil
+		}
 		return configStatus()
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown config subcommand: %s\n", subcommand)
+		fmt.Fprintf(os.Stderr, "Unknown config subcommand: %s\n\n", subcommand)
+		ShowHelp([]string{"config"})
 		return fmt.Errorf("unknown config subcommand: %s", subcommand)
 	}
 }

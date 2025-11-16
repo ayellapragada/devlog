@@ -14,28 +14,71 @@ import (
 	"devlog/internal/daemon"
 )
 
+func init() {
+	RegisterCommand("session", &CommandDefinition{
+		Name:        "session",
+		Description: "Manage development sessions",
+		Usage:       "devlog session <subcommand>",
+		Subcommands: map[string]*CommandDefinition{
+			"create": {
+				Name:        "create",
+				Description: "Create a new session from event IDs",
+				Usage:       "devlog session create --events <id1> <id2> ... [--description <text>]",
+				Flags: []FlagDefinition{
+					{Long: "--description", Description: "Optional description for the session"},
+				},
+				Examples: []string{
+					"devlog session create --events abc123 def456",
+					"devlog session create --events abc123 --description \"Bug fix session\"",
+				},
+			},
+			"list": {
+				Name:        "list",
+				Description: "List all sessions",
+				Usage:       "devlog session list",
+				Examples: []string{
+					"devlog session list",
+				},
+			},
+		},
+	})
+}
+
 func Session() error {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage:")
-		fmt.Println("  devlog session create --events <id1> <id2> ... [--description <text>]")
-		fmt.Println("  devlog session list")
+		ShowHelp([]string{"session"})
 		return fmt.Errorf("missing session subcommand")
 	}
 
 	subcommand := os.Args[2]
 
+	if subcommand == "help" {
+		ShowHelp([]string{"session"})
+		return nil
+	}
+
 	switch subcommand {
 	case "create":
 		return sessionCreate()
 	case "list":
+		if len(os.Args) > 3 && os.Args[3] == "help" {
+			ShowHelp([]string{"session", "list"})
+			return nil
+		}
 		return sessionList()
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown session subcommand: %s\n", subcommand)
+		fmt.Fprintf(os.Stderr, "Unknown session subcommand: %s\n\n", subcommand)
+		ShowHelp([]string{"session"})
 		return fmt.Errorf("unknown session subcommand: %s", subcommand)
 	}
 }
 
 func sessionCreate() error {
+	if len(os.Args) > 3 && os.Args[3] == "help" {
+		ShowHelp([]string{"session", "create"})
+		return nil
+	}
+
 	fs := flag.NewFlagSet("session-create", flag.ExitOnError)
 	description := fs.String("description", "", "Session description")
 

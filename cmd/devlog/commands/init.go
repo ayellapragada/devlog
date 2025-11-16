@@ -9,6 +9,17 @@ import (
 	"devlog/internal/storage"
 )
 
+func init() {
+	RegisterCommand("init", &CommandDefinition{
+		Name:        "init",
+		Description: "Initialize devlog configuration and database",
+		Usage:       "devlog init",
+		Examples: []string{
+			"devlog init",
+		},
+	})
+}
+
 func Init() error {
 	fmt.Println("Initializing devlog...")
 
