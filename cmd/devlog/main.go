@@ -35,7 +35,22 @@ func run() error {
 	case "poll":
 		return commands.Poll()
 	case "status":
-		return commands.Status()
+		verbose := false
+		limit := 10
+
+		for i := 2; i < len(os.Args); i++ {
+			if os.Args[i] == "--verbose" {
+				verbose = true
+			} else if os.Args[i] == "-n" {
+				if i+1 < len(os.Args) {
+					if n, err := fmt.Sscanf(os.Args[i+1], "%d", &limit); err == nil && n == 1 {
+						i++
+					}
+				}
+			}
+		}
+
+		return commands.Status(verbose, limit)
 	case "flush":
 		return commands.Flush()
 	case "session":
@@ -66,7 +81,7 @@ func printUsage() {
 	fmt.Println("  devlog daemon start                  Start the daemon")
 	fmt.Println("  devlog daemon stop                   Stop the daemon")
 	fmt.Println("  devlog daemon status                 Check daemon status")
-	fmt.Println("  devlog status                        Show recent events")
+	fmt.Println("  devlog status [--verbose] [-n N]     Show recent events")
 	fmt.Println("  devlog session create --events <ids> Create session from event IDs")
 	fmt.Println("  devlog session list                  List all sessions")
 	fmt.Println("  devlog help                          Show this help message")

@@ -1,6 +1,7 @@
 package formatting
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -79,4 +80,32 @@ func getFolder(event *events.Event) string {
 		}
 	}
 	return ""
+}
+
+func FormatEventVerbose(event *events.Event) {
+	ts, _ := time.Parse(time.RFC3339, event.Timestamp)
+
+	fmt.Println("─────────────────────────────────────────────────────────")
+	fmt.Printf("ID:        %s\n", event.ID)
+	fmt.Printf("Timestamp: %s\n", ts.Format("2006-01-02 15:04:05 MST"))
+	fmt.Printf("Source:    %s\n", event.Source)
+	fmt.Printf("Type:      %s\n", event.Type)
+
+	if event.Repo != "" {
+		fmt.Printf("Repo:      %s\n", event.Repo)
+	}
+
+	if event.Branch != "" {
+		fmt.Printf("Branch:    %s\n", event.Branch)
+	}
+
+	if len(event.Payload) > 0 {
+		fmt.Println("Payload:")
+		payloadJSON, err := json.MarshalIndent(event.Payload, "  ", "  ")
+		if err == nil {
+			fmt.Printf("  %s\n", string(payloadJSON))
+		}
+	}
+
+	fmt.Println()
 }
