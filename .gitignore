@@ -30,4 +30,4 @@ Thumbs.db
 .env.local
 
 # devlog binaries from claude testing
-binlog
+devlog

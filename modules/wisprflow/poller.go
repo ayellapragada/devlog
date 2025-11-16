@@ -3,27 +3,32 @@ package wisprflow
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"devlog/internal/events"
+	"devlog/internal/state"
 )
 
 type Poller struct {
 	dbPath       string
-	dataDir      string
 	pollInterval time.Duration
 	minWords     int
+	stateMgr     *state.Manager
 }
 
-func NewPoller(dbPath, dataDir string, pollInterval time.Duration, minWords int) *Poller {
+func NewPoller(dbPath, dataDir string, pollInterval time.Duration, minWords int) (*Poller, error) {
+	stateMgr, err := state.NewManager(dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("create state manager: %w", err)
+	}
+
 	return &Poller{
 		dbPath:       dbPath,
-		dataDir:      dataDir,
 		pollInterval: pollInterval,
 		minWords:     minWords,
-	}
+		stateMgr:     stateMgr,
+	}, nil
 }
 
 func (p *Poller) Name() string {
@@ -41,9 +46,11 @@ func (p *Poller) Poll(ctx context.Context) ([]*events.Event, error) {
 	default:
 	}
 
-	lastPoll, err := LoadLastPollTime(p.dataDir)
-	if err != nil {
-		return nil, fmt.Errorf("load last poll time: %w", err)
+	lastPoll := time.Now()
+	if lastPollStr, ok := p.stateMgr.GetString("wisprflow", "last_poll_time"); ok {
+		if t, err := time.Parse(time.RFC3339Nano, lastPollStr); err == nil {
+			lastPoll = t
+		}
 	}
 
 	entries, err := PollDatabaseContext(ctx, p.dbPath, lastPoll)
@@ -54,8 +61,6 @@ func (p *Poller) Poll(ctx context.Context) ([]*events.Event, error) {
 	if len(entries) == 0 {
 		return nil, nil
 	}
-
-	fmt.Printf("Wispr Flow: found %d new transcription(s)\n", len(entries))
 
 	var result []*events.Event
 	for _, entry := range entries {
@@ -93,14 +98,9 @@ func (p *Poller) Poll(ctx context.Context) ([]*events.Event, error) {
 	if len(entries) > 0 {
 		lastEntry := entries[len(entries)-1]
 		nextPollTime := lastEntry.Timestamp.Add(1 * time.Millisecond)
-		if err := SaveLastPollTime(p.dataDir, nextPollTime); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to save poll timestamp: %v\n", err)
+		if err := p.stateMgr.Set("wisprflow", "last_poll_time", nextPollTime.Format(time.RFC3339Nano)); err != nil {
+			return nil, fmt.Errorf("save poll timestamp: %w", err)
 		}
-	}
-
-	storedCount := len(result)
-	if storedCount > 0 {
-		fmt.Printf("Wispr Flow: prepared %d event(s) for storage\n", storedCount)
 	}
 
 	return result, nil

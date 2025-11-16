@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"devlog/internal/modules"
+	"devlog/internal/state"
 
 	_ "modernc.org/sqlite"
 )
@@ -62,7 +63,6 @@ func (m *Module) Install(ctx *modules.InstallContext) error {
 	ctx.Log("Wispr Flow integration installed successfully!")
 	ctx.Log("")
 	ctx.Log("The module will poll the database for new speech-to-text entries.")
-	ctx.Log("Database access is read-only to ensure safety.")
 
 	return nil
 }
@@ -73,9 +73,20 @@ func (m *Module) Uninstall(ctx *modules.InstallContext) error {
 	timestampFile := getTimestampFilePath(ctx.DataDir)
 	if _, err := os.Stat(timestampFile); err == nil {
 		if err := os.Remove(timestampFile); err != nil {
-			ctx.Log("Warning: failed to remove timestamp file: %v", err)
+			ctx.Log("Warning: failed to remove old timestamp: %v", err)
 		} else {
-			ctx.Log("✓ Removed timestamp file")
+			ctx.Log("✓ Removed old timestamp")
+		}
+	}
+
+	stateMgr, err := state.NewManager(ctx.DataDir)
+	if err != nil {
+		ctx.Log("Warning: failed to clean up state: %v", err)
+	} else {
+		if err := stateMgr.DeleteModule("wisprflow"); err != nil {
+			ctx.Log("Warning: failed to clean up state: %v", err)
+		} else {
+			ctx.Log("✓ Cleaned up wisprflow state")
 		}
 	}
 

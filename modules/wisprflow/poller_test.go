@@ -9,18 +9,17 @@ import (
 
 func TestNewPoller(t *testing.T) {
 	dbPath := "/path/to/db"
-	dataDir := "/path/to/data"
+	dataDir := t.TempDir()
 	interval := 30 * time.Second
 	minWords := 5
 
-	poller := NewPoller(dbPath, dataDir, interval, minWords)
+	poller, err := NewPoller(dbPath, dataDir, interval, minWords)
+	if err != nil {
+		t.Fatalf("Failed to create poller: %v", err)
+	}
 
 	if poller.dbPath != dbPath {
 		t.Errorf("Expected dbPath %s, got %s", dbPath, poller.dbPath)
-	}
-
-	if poller.dataDir != dataDir {
-		t.Errorf("Expected dataDir %s, got %s", dataDir, poller.dataDir)
 	}
 
 	if poller.pollInterval != interval {
@@ -33,7 +32,11 @@ func TestNewPoller(t *testing.T) {
 }
 
 func TestPollerName(t *testing.T) {
-	poller := NewPoller("", "", time.Second, 0)
+	dataDir := t.TempDir()
+	poller, err := NewPoller("", dataDir, time.Second, 0)
+	if err != nil {
+		t.Fatalf("Failed to create poller: %v", err)
+	}
 
 	if poller.Name() != "wisprflow" {
 		t.Errorf("Expected name 'wisprflow', got '%s'", poller.Name())
@@ -41,8 +44,12 @@ func TestPollerName(t *testing.T) {
 }
 
 func TestPollerPollInterval(t *testing.T) {
+	dataDir := t.TempDir()
 	interval := 45 * time.Second
-	poller := NewPoller("", "", interval, 0)
+	poller, err := NewPoller("", dataDir, interval, 0)
+	if err != nil {
+		t.Fatalf("Failed to create poller: %v", err)
+	}
 
 	if poller.PollInterval() != interval {
 		t.Errorf("Expected interval %v, got %v", interval, poller.PollInterval())
@@ -54,9 +61,12 @@ func TestPollerPollWithNonexistentDB(t *testing.T) {
 	dbPath := filepath.Join(tmpDir, "nonexistent.db")
 	dataDir := t.TempDir()
 
-	poller := NewPoller(dbPath, dataDir, time.Second, 0)
+	poller, err := NewPoller(dbPath, dataDir, time.Second, 0)
+	if err != nil {
+		t.Fatalf("Failed to create poller: %v", err)
+	}
 
-	_, err := poller.Poll(context.Background())
+	_, err = poller.Poll(context.Background())
 	if err == nil {
 		t.Error("Expected error when polling nonexistent database")
 	}
@@ -67,7 +77,11 @@ func TestPollerPollWithMinWordsFiltering(t *testing.T) {
 }
 
 func TestPollerShouldRetryOnError(t *testing.T) {
-	poller := NewPoller("", "", time.Second, 0)
+	dataDir := t.TempDir()
+	poller, err := NewPoller("", dataDir, time.Second, 0)
+	if err != nil {
+		t.Fatalf("Failed to create poller: %v", err)
+	}
 
 	tests := []struct {
 		name     string

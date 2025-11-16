@@ -186,12 +186,18 @@ func (d *Daemon) setupPollers() {
 			return
 		}
 
-		wisprPoller := wisprflow.NewPoller(
+		wisprPoller, err := wisprflow.NewPoller(
 			dbPath,
 			dataDir,
 			time.Duration(pollInterval)*time.Second,
 			minWords,
 		)
+		if err != nil {
+			d.logger.Warn("wisprflow poller creation failed",
+				slog.String("error", err.Error()))
+			return
+		}
+
 		d.pollerManager.Register(wisprPoller)
 
 		d.logger.Info("wispr flow polling started",
@@ -235,12 +241,17 @@ func (d *Daemon) setupPollers() {
 			return
 		}
 
-		clipboardPoller := clipboard.NewPoller(
+		clipboardPoller, err := clipboard.NewPoller(
 			dataDir,
 			duration,
 			maxLength,
 			minLength,
 		)
+		if err != nil {
+			d.logger.Warn("clipboard poller creation failed",
+				slog.String("error", err.Error()))
+			return
+		}
 
 		if err := clipboardPoller.Init(); err != nil {
 			d.logger.Warn("clipboard poller init failed",

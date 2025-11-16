@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"devlog/internal/modules"
+	"devlog/internal/state"
 
 	"golang.design/x/clipboard"
 )
@@ -45,6 +46,18 @@ func (m *Module) Install(ctx *modules.InstallContext) error {
 
 func (m *Module) Uninstall(ctx *modules.InstallContext) error {
 	ctx.Log("Uninstalling clipboard tracker...")
+
+	stateMgr, err := state.NewManager(ctx.DataDir)
+	if err != nil {
+		ctx.Log("Warning: failed to clean up state: %v", err)
+	} else {
+		if err := stateMgr.DeleteModule("clipboard"); err != nil {
+			ctx.Log("Warning: failed to clean up state: %v", err)
+		} else {
+			ctx.Log("✓ Cleaned up clipboard state")
+		}
+	}
+
 	ctx.Log("✓ Clipboard tracking will be disabled")
 	ctx.Log("")
 	ctx.Log("Note: Historical clipboard data will be preserved in your devlog.")
