@@ -33,10 +33,11 @@ func init() {
 			},
 			"uninstall": {
 				Name:        "uninstall",
-				Description: "Uninstall and disable a module",
-				Usage:       "devlog module uninstall <name>",
+				Description: "Uninstall and disable a module (preserves config)",
+				Usage:       "devlog module uninstall [--purge] <name>",
 				Examples: []string{
 					"devlog module uninstall git",
+					"devlog module uninstall --purge git",
 				},
 			},
 		},
@@ -168,10 +169,21 @@ func moduleInstall() error {
 
 func moduleUninstall() error {
 	if len(os.Args) < 4 {
-		return fmt.Errorf("usage: devlog module uninstall <name>")
+		return fmt.Errorf("usage: devlog module uninstall [--purge] <name>")
 	}
 
-	moduleName := os.Args[3]
+	var purge bool
+	var moduleName string
+
+	if os.Args[3] == "--purge" {
+		if len(os.Args) < 5 {
+			return fmt.Errorf("usage: devlog module uninstall --purge <name>")
+		}
+		purge = true
+		moduleName = os.Args[4]
+	} else {
+		moduleName = os.Args[3]
+	}
 
 	if moduleName == "help" {
 		ShowHelp([]string{"module", "uninstall"})
@@ -194,6 +206,11 @@ func moduleUninstall() error {
 	}
 
 	fmt.Printf("Uninstalling module: %s\n", moduleName)
+	if purge {
+		fmt.Println("Mode: purge (will remove all configuration)")
+	} else {
+		fmt.Println("Mode: standard (configuration will be preserved)")
+	}
 	fmt.Println()
 
 	ctx := createModuleContext()
@@ -202,14 +219,22 @@ func moduleUninstall() error {
 		return fmt.Errorf("uninstall module: %w", err)
 	}
 
-	cfg.SetModuleEnabled(moduleName, false)
+	if purge {
+		cfg.ClearModuleConfig(moduleName)
+	} else {
+		cfg.SetModuleEnabled(moduleName, false)
+	}
 
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
 
 	fmt.Println()
-	fmt.Printf("✓ Module '%s' uninstalled and disabled\n", moduleName)
+	if purge {
+		fmt.Printf("✓ Module '%s' uninstalled and configuration removed\n", moduleName)
+	} else {
+		fmt.Printf("✓ Module '%s' uninstalled\n", moduleName)
+	}
 
 	return nil
 }

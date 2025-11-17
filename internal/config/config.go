@@ -166,6 +166,13 @@ func (c *Config) SetModuleConfig(moduleName string, config map[string]interface{
 	c.Modules[moduleName] = modCfg
 }
 
+func (c *Config) ClearModuleConfig(moduleName string) {
+	if c.Modules == nil {
+		return
+	}
+	delete(c.Modules, moduleName)
+}
+
 func (c *Config) ShouldCaptureCommand(command string) bool {
 	if !c.IsModuleEnabled("shell") {
 		return false
