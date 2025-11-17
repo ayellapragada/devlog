@@ -84,6 +84,7 @@ func showMainHelp(showAll bool) {
 	printCommand("  daemon", "Manage the daemon process")
 	printCommand("  config", "Manage configuration")
 	printCommand("  module", "Manage modules")
+	printCommand("  plugin", "Manage plugins")
 	printCommand("  session", "Manage development sessions")
 	printCommand("  status", "Show recent events")
 

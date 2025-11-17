@@ -8,9 +8,19 @@ import (
 type Plugin interface {
 	Name() string
 	Description() string
+	Install(ctx *InstallContext) error
+	Uninstall(ctx *InstallContext) error
 	Start(ctx context.Context) error
 	DefaultConfig() interface{}
 	ValidateConfig(config interface{}) error
+}
+
+type InstallContext struct {
+	Interactive bool
+	ConfigDir   string
+	DataDir     string
+	HomeDir     string
+	Log         func(format string, args ...interface{})
 }
 
 type Registry struct {

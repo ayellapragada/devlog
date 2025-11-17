@@ -50,6 +50,18 @@ func (p *SummarizerPlugin) Description() string {
 	return "Periodically summarizes dev activity using an LLM"
 }
 
+func (p *SummarizerPlugin) Install(ctx *plugins.InstallContext) error {
+	ctx.Log("Installing LLM Summarizer plugin")
+	ctx.Log("This plugin requires an LLM provider (ollama, anthropic, etc.)")
+	ctx.Log("Configure your provider and API settings in the plugin configuration")
+	return nil
+}
+
+func (p *SummarizerPlugin) Uninstall(ctx *plugins.InstallContext) error {
+	ctx.Log("Uninstalling LLM Summarizer plugin")
+	return nil
+}
+
 func (p *SummarizerPlugin) DefaultConfig() interface{} {
 	return &SummarizerConfig{
 		Provider:        "ollama",
