@@ -250,7 +250,6 @@ func (m *Module) removeFromRcFile(ctx *modules.InstallContext, rcFile string) {
 
 func (m *Module) DefaultConfig() interface{} {
 	return map[string]interface{}{
-		"capture_mode": "important",
 		"ignore_list": []string{
 			"ls", "cd", "pwd", "echo", "cat", "clear",
 			"exit", "history", "which", "type", "alias",
@@ -259,15 +258,9 @@ func (m *Module) DefaultConfig() interface{} {
 }
 
 func (m *Module) ValidateConfig(config interface{}) error {
-	cfg, ok := config.(map[string]interface{})
+	_, ok := config.(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("config must be a map")
-	}
-
-	if mode, ok := cfg["capture_mode"].(string); ok {
-		if mode != "all" && mode != "important" {
-			return fmt.Errorf("capture_mode must be 'all' or 'important'")
-		}
 	}
 
 	return nil

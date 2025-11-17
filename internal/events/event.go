@@ -26,6 +26,7 @@ const (
 	SourceManual    = "manual"
 	SourceGitHub    = "github"
 	SourceClipboard = "clipboard"
+	SourceTmux      = "tmux"
 )
 
 const (
@@ -43,6 +44,11 @@ const (
 	TypeContextSwitch = "context_switch"
 	TypeTranscription = "transcription"
 	TypeCopy          = "copy"
+	TypeTmuxSession   = "tmux_session"
+	TypeTmuxWindow    = "tmux_window"
+	TypeTmuxPane      = "tmux_pane"
+	TypeTmuxAttach    = "tmux_attach"
+	TypeTmuxDetach    = "tmux_detach"
 	TypeOther         = "other"
 )
 
@@ -95,7 +101,7 @@ func (e *Event) Validate() error {
 
 func isValidSource(source string) bool {
 	switch source {
-	case SourceGit, SourceShell, SourceWisprflow, SourceManual, SourceGitHub, SourceClipboard:
+	case SourceGit, SourceShell, SourceWisprflow, SourceManual, SourceGitHub, SourceClipboard, SourceTmux:
 		return true
 	default:
 		return false
@@ -105,7 +111,9 @@ func isValidSource(source string) bool {
 func isValidType(eventType string) bool {
 	switch eventType {
 	case TypeCommit, TypeMerge, TypePush, TypePull, TypeFetch, TypeCheckout, TypeRebase, TypeStash,
-		TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeTranscription, TypeCopy, TypeOther:
+		TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeTranscription, TypeCopy,
+		TypeTmuxSession, TypeTmuxWindow, TypeTmuxPane, TypeTmuxAttach, TypeTmuxDetach,
+		TypeOther:
 		return true
 	default:
 		return false

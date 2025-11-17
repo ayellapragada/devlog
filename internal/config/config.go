@@ -173,7 +173,7 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 
 	shellCfg, ok := c.GetModuleConfig("shell")
 	if !ok {
-		return false
+		return true
 	}
 
 	baseCmd := command
@@ -184,11 +184,6 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 		}
 	}
 
-	captureMode, _ := shellCfg["capture_mode"].(string)
-	if captureMode == "" {
-		captureMode = "important"
-	}
-
 	ignoreListInterface, _ := shellCfg["ignore_list"].([]interface{})
 	for _, item := range ignoreListInterface {
 		if ignored, ok := item.(string); ok && baseCmd == ignored {
@@ -196,7 +191,7 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 		}
 	}
 
-	return captureMode == "all"
+	return true
 }
 
 func InitConfig() error {

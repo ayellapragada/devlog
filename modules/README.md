@@ -21,7 +21,7 @@ Captures git operations automatically by installing a git command wrapper.
 
 **Installation:**
 ```bash
-./bin/devlog module install git
+devlog module install git
 ```
 
 The git module installs a wrapper script to `~/.local/bin/git` that intercepts git commands and sends events to the DevLog daemon after successful operations.
@@ -40,7 +40,7 @@ Captures shell commands with exit codes, duration, and working directory context
 
 **Installation:**
 ```bash
-./bin/devlog module install shell
+devlog module install shell
 ```
 
 The shell module integrates with your shell's prompt command (Bash/Zsh) to capture every command execution.
@@ -49,6 +49,25 @@ The shell module integrates with your shell's prompt command (Bash/Zsh) to captu
 **Location:** [modules/clipboard/](clipboard/)
 
 Monitors clipboard for code snippets and development-related content.
+
+### tmux
+**Location:** [modules/tmux/](tmux/)
+
+Captures tmux session, window, and pane events using tmux's native hook system.
+
+**Events Captured:**
+- Session creation, closure, and switching
+- Client attach/detach events
+- Window creation and switching
+- Pane creation and selection
+- Focus in/out events
+
+**Installation:**
+```bash
+devlog module install tmux
+```
+
+The tmux module uses tmux's built-in hooks to capture events with zero polling overhead. Installation is fully automated - it will update your `~/.tmux.conf` and reload the configuration automatically.
 
 ### wisprflow
 **Location:** [modules/wisprflow/](wisprflow/)

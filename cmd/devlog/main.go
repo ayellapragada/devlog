@@ -8,6 +8,7 @@ import (
 
 	_ "devlog/modules/git"
 	_ "devlog/modules/shell"
+	_ "devlog/modules/tmux"
 )
 
 func main() {

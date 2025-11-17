@@ -36,6 +36,14 @@ func init() {
 					"devlog ingest shell-command",
 				},
 			},
+			"tmux-event": {
+				Name:        "tmux-event",
+				Description: "Ingest a tmux event (used by tmux hooks)",
+				Usage:       "devlog ingest tmux-event [flags]",
+				Examples: []string{
+					"devlog ingest tmux-event --type=session --action=create --session=dev",
+				},
+			},
 		},
 	})
 }
@@ -58,6 +66,8 @@ func Ingest() error {
 		return ingestGitEvent()
 	case "shell-command":
 		return ingestShellCommand()
+	case "tmux-event":
+		return ingestTmuxEvent()
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown ingest subcommand: %s\n\n", subcommand)
 		ShowHelp([]string{"ingest"})
@@ -216,6 +226,68 @@ func sendEvent(event *events.Event) error {
 	}
 
 	return nil
+}
+
+func ingestTmuxEvent() error {
+	fs := flag.NewFlagSet("tmux-event", flag.ExitOnError)
+	eventType := fs.String("type", "", "Event type (session, attach, detach, session-switch, window, pane)")
+	action := fs.String("action", "", "Action (create, close, rename, split)")
+	session := fs.String("session", "", "Session name")
+	window := fs.String("window", "", "Window name")
+	windowID := fs.String("window-id", "", "Window ID")
+	pane := fs.String("pane", "", "Pane index")
+	paneID := fs.String("pane-id", "", "Pane ID")
+	client := fs.String("client", "", "Client name")
+
+	fs.Parse(os.Args[3:])
+
+	if *eventType == "" {
+		return fmt.Errorf("--type is required")
+	}
+
+	var typeConstant string
+	switch *eventType {
+	case "session":
+		typeConstant = events.TypeTmuxSession
+	case "attach":
+		typeConstant = events.TypeTmuxAttach
+	case "detach":
+		typeConstant = events.TypeTmuxDetach
+	case "session-switch":
+		typeConstant = events.TypeContextSwitch
+	case "window":
+		typeConstant = events.TypeTmuxWindow
+	case "pane":
+		typeConstant = events.TypeTmuxPane
+	default:
+		return fmt.Errorf("unknown event type: %s", *eventType)
+	}
+
+	event := events.NewEvent(events.SourceTmux, typeConstant)
+
+	if *session != "" {
+		event.Payload["session"] = *session
+	}
+	if *action != "" {
+		event.Payload["action"] = *action
+	}
+	if *window != "" {
+		event.Payload["window"] = *window
+	}
+	if *windowID != "" {
+		event.Payload["window_id"] = *windowID
+	}
+	if *pane != "" {
+		event.Payload["pane"] = *pane
+	}
+	if *paneID != "" {
+		event.Payload["pane_id"] = *paneID
+	}
+	if *client != "" {
+		event.Payload["client"] = *client
+	}
+
+	return sendEvent(event)
 }
 
 func FindGitRepo(path string) (string, error) {
