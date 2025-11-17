@@ -39,13 +39,7 @@ func Init() error {
 
 	fmt.Println("\nInitialization complete!")
 	fmt.Println("\nNext steps:")
-	fmt.Println("  1. Edit your config file to set the Obsidian path")
-
-	configPath, _ := config.ConfigPath()
-	fmt.Printf("     %s\n", configPath)
-
-	fmt.Println()
-	fmt.Println("  2. Install modules to enable event capture:")
+	fmt.Println("  1. Install modules to enable event capture:")
 
 	allModules := modules.List()
 	for _, mod := range allModules {
@@ -55,7 +49,7 @@ func Init() error {
 	fmt.Println()
 	fmt.Println("     Install modules with: devlog module install <name>")
 	fmt.Println()
-	fmt.Println("  3. Start the daemon:")
+	fmt.Println("  2. Start the daemon:")
 	fmt.Println("     devlog daemon start")
 
 	return nil

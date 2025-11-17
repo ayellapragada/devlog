@@ -33,7 +33,6 @@ func NewTestStorage(t *testing.T) *storage.Storage {
 
 func NewTestConfig() *config.Config {
 	return &config.Config{
-		ObsidianPath:      "/tmp/obsidian",
 		HTTP:              config.HTTPConfig{Port: 8573},
 		SessionGapMinutes: 45,
 		Modules:           make(map[string]config.ModuleConfig),

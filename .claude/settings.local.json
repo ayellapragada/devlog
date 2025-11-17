@@ -4,7 +4,8 @@
       "Bash(sed:*)",
       "Bash(go build:*)",
       "Bash(./devlog:*)",
-      "Bash(./devlog help)"
+      "Bash(./devlog help)",
+      "Bash(go list:*)"
     ],
     "deny": [],
     "ask": []

@@ -77,7 +77,6 @@ func configStatus() error {
 	fmt.Println()
 	fmt.Printf("Config file: %s\n", configPath)
 	fmt.Printf("Data directory: %s\n", dataDir)
-	fmt.Printf("Obsidian path: %s\n", cfg.ObsidianPath)
 	fmt.Printf("HTTP port: %d\n", cfg.HTTP.Port)
 	fmt.Println()
 

@@ -25,41 +25,23 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid config",
 			config: &Config{
-				ObsidianPath: "/some/path",
-				HTTP:         HTTPConfig{Port: 8573},
+				HTTP: HTTPConfig{Port: 8573},
 			},
 			wantErr: false,
 		},
 		{
-			name: "missing obsidian path",
-			config: &Config{
-				HTTP: HTTPConfig{Port: 8573},
-			},
-			wantErr: true,
-		},
-		{
 			name: "invalid port - too low",
 			config: &Config{
-				ObsidianPath: "/some/path",
-				HTTP:         HTTPConfig{Port: 0},
+				HTTP: HTTPConfig{Port: 0},
 			},
 			wantErr: true,
 		},
 		{
 			name: "invalid port - too high",
 			config: &Config{
-				ObsidianPath: "/some/path",
-				HTTP:         HTTPConfig{Port: 99999},
+				HTTP: HTTPConfig{Port: 99999},
 			},
 			wantErr: true,
-		},
-		{
-			name: "tilde expansion",
-			config: &Config{
-				ObsidianPath: "~/Documents",
-				HTTP:         HTTPConfig{Port: 8573},
-			},
-			wantErr: false,
 		},
 	}
 
@@ -68,12 +50,6 @@ func TestValidate(t *testing.T) {
 			err := tt.config.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-
-			if !tt.wantErr && tt.name == "tilde expansion" {
-				if tt.config.ObsidianPath[0] == '~' {
-					t.Error("tilde was not expanded")
-				}
 			}
 		})
 	}
@@ -84,8 +60,7 @@ func TestLoadConfig(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	testConfig := &Config{
-		ObsidianPath: "/test/path",
-		HTTP:         HTTPConfig{Port: 9000},
+		HTTP: HTTPConfig{Port: 9000},
 	}
 
 	data, err := yaml.Marshal(testConfig)
@@ -105,10 +80,6 @@ func TestLoadConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	if err := yaml.Unmarshal(readData, cfg); err != nil {
 		t.Fatal(err)
-	}
-
-	if cfg.ObsidianPath != "/test/path" {
-		t.Errorf("got ObsidianPath %s, want /test/path", cfg.ObsidianPath)
 	}
 
 	if cfg.HTTP.Port != 9000 {

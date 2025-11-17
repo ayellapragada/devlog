@@ -9,7 +9,6 @@ import (
 )
 
 type Config struct {
-	ObsidianPath      string                  `yaml:"obsidian_path"`
 	HTTP              HTTPConfig              `yaml:"http"`
 	SessionGapMinutes int                     `yaml:"session_gap_minutes,omitempty"`
 	Modules           map[string]ModuleConfig `yaml:"modules,omitempty"`
@@ -110,18 +109,6 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.ObsidianPath == "" {
-		return fmt.Errorf("obsidian_path is required")
-	}
-
-	if c.ObsidianPath[0] == '~' {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("expand home directory: %w", err)
-		}
-		c.ObsidianPath = filepath.Join(home, c.ObsidianPath[1:])
-	}
-
 	if c.HTTP.Port < 1 || c.HTTP.Port > 65535 {
 		return fmt.Errorf("http port must be between 1 and 65535")
 	}
@@ -230,7 +217,6 @@ func InitConfig() error {
 	}
 
 	defaultCfg := DefaultConfig()
-	defaultCfg.ObsidianPath = "~/Documents/Obsidian/DevLogs"
 
 	data, err := yaml.Marshal(defaultCfg)
 	if err != nil {
@@ -243,7 +229,6 @@ func InitConfig() error {
 
 	fmt.Printf("Created config file at %s\n", configPath)
 	fmt.Printf("Created data directory at %s\n", dataDir)
-	fmt.Println("\nPlease edit the config file to set your Obsidian path.")
 
 	return nil
 }
