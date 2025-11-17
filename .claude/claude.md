@@ -1,5 +1,9 @@
 # Claude Code Instructions
 
+## Workflow Guidelines
+
+- Only commit if explicitly prompted, otherwise leave git operations to the user.
+
 ## Code Style Guidelines
 
 ### Comments Policy

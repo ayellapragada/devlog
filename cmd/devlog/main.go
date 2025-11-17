@@ -78,6 +78,8 @@ func run() error {
 		return commands.Config()
 	case "module":
 		return commands.Module()
+	case "plugin":
+		return commands.Plugin()
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", command)
 		commands.ShowHelp([]string{})

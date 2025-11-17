@@ -14,12 +14,12 @@ import (
 )
 
 type Poller struct {
-	pollInterval    time.Duration
-	maxLength       int
-	minLength       int
-	recentHashes    []string
+	pollInterval     time.Duration
+	maxLength        int
+	minLength        int
+	recentHashes     []string
 	dedupHistorySize int
-	stateMgr        *state.Manager
+	stateMgr         *state.Manager
 }
 
 func NewPoller(dataDir string, pollInterval time.Duration, maxLength, minLength, dedupHistorySize int) (*Poller, error) {

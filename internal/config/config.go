@@ -9,12 +9,13 @@ import (
 )
 
 type Config struct {
-	HTTP              HTTPConfig              `yaml:"http"`
-	SessionGapMinutes int                     `yaml:"session_gap_minutes,omitempty"`
-	Modules           map[string]ModuleConfig `yaml:"modules,omitempty"`
+	HTTP              HTTPConfig                 `yaml:"http"`
+	SessionGapMinutes int                        `yaml:"session_gap_minutes,omitempty"`
+	Modules           map[string]ComponentConfig `yaml:"modules,omitempty"`
+	Plugins           map[string]ComponentConfig `yaml:"plugins,omitempty"`
 }
 
-type ModuleConfig struct {
+type ComponentConfig struct {
 	Enabled bool                   `yaml:"enabled"`
 	Config  map[string]interface{} `yaml:",inline"`
 }
@@ -28,7 +29,8 @@ func DefaultConfig() *Config {
 		HTTP: HTTPConfig{
 			Port: 8573,
 		},
-		Modules: make(map[string]ModuleConfig),
+		Modules: make(map[string]ComponentConfig),
+		Plugins: make(map[string]ComponentConfig),
 	}
 }
 
@@ -116,48 +118,88 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func (c *Config) IsModuleEnabled(moduleName string) bool {
-	if c.Modules == nil {
+func isComponentEnabled(components map[string]ComponentConfig, name string) bool {
+	if components == nil {
 		return false
 	}
-	modCfg, exists := c.Modules[moduleName]
-	return exists && modCfg.Enabled
+	cfg, exists := components[name]
+	return exists && cfg.Enabled
+}
+
+func getComponentConfig(components map[string]ComponentConfig, name string) (map[string]interface{}, bool) {
+	if components == nil {
+		return nil, false
+	}
+	cfg, exists := components[name]
+	if !exists || !cfg.Enabled {
+		return nil, false
+	}
+	return cfg.Config, true
+}
+
+func setComponentEnabled(components *map[string]ComponentConfig, name string, enabled bool) {
+	if *components == nil {
+		*components = make(map[string]ComponentConfig)
+	}
+	cfg := (*components)[name]
+	cfg.Enabled = enabled
+	(*components)[name] = cfg
+}
+
+func setComponentConfig(components *map[string]ComponentConfig, name string, config map[string]interface{}) {
+	if *components == nil {
+		*components = make(map[string]ComponentConfig)
+	}
+	cfg := (*components)[name]
+	cfg.Config = config
+	(*components)[name] = cfg
+}
+
+func clearComponent(components map[string]ComponentConfig, name string) {
+	if components == nil {
+		return
+	}
+	delete(components, name)
+}
+
+func (c *Config) IsModuleEnabled(moduleName string) bool {
+	return isComponentEnabled(c.Modules, moduleName)
 }
 
 func (c *Config) GetModuleConfig(moduleName string) (map[string]interface{}, bool) {
-	if c.Modules == nil {
-		return nil, false
-	}
-	modCfg, exists := c.Modules[moduleName]
-	if !exists || !modCfg.Enabled {
-		return nil, false
-	}
-	return modCfg.Config, true
+	return getComponentConfig(c.Modules, moduleName)
 }
 
 func (c *Config) SetModuleEnabled(moduleName string, enabled bool) {
-	if c.Modules == nil {
-		c.Modules = make(map[string]ModuleConfig)
-	}
-	modCfg := c.Modules[moduleName]
-	modCfg.Enabled = enabled
-	c.Modules[moduleName] = modCfg
+	setComponentEnabled(&c.Modules, moduleName, enabled)
 }
 
 func (c *Config) SetModuleConfig(moduleName string, config map[string]interface{}) {
-	if c.Modules == nil {
-		c.Modules = make(map[string]ModuleConfig)
-	}
-	modCfg := c.Modules[moduleName]
-	modCfg.Config = config
-	c.Modules[moduleName] = modCfg
+	setComponentConfig(&c.Modules, moduleName, config)
 }
 
 func (c *Config) ClearModuleConfig(moduleName string) {
-	if c.Modules == nil {
-		return
-	}
-	delete(c.Modules, moduleName)
+	clearComponent(c.Modules, moduleName)
+}
+
+func (c *Config) IsPluginEnabled(pluginName string) bool {
+	return isComponentEnabled(c.Plugins, pluginName)
+}
+
+func (c *Config) GetPluginConfig(pluginName string) (map[string]interface{}, bool) {
+	return getComponentConfig(c.Plugins, pluginName)
+}
+
+func (c *Config) SetPluginEnabled(pluginName string, enabled bool) {
+	setComponentEnabled(&c.Plugins, pluginName, enabled)
+}
+
+func (c *Config) SetPluginConfig(pluginName string, config map[string]interface{}) {
+	setComponentConfig(&c.Plugins, pluginName, config)
+}
+
+func (c *Config) ClearPluginConfig(pluginName string) {
+	clearComponent(c.Plugins, pluginName)
 }
 
 func (c *Config) ShouldCaptureCommand(command string) bool {

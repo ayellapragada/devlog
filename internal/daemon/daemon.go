@@ -15,6 +15,7 @@ import (
 	"devlog/internal/api"
 	"devlog/internal/config"
 	"devlog/internal/logger"
+	"devlog/internal/plugins"
 	"devlog/internal/poller"
 	"devlog/internal/queue"
 	"devlog/internal/session"
@@ -24,13 +25,15 @@ import (
 )
 
 type Daemon struct {
-	config         *config.Config
-	storage        *storage.Storage
-	sessionManager *session.Manager
-	pollerManager  *poller.Manager
-	server         *http.Server
-	logger         *logger.Logger
-	stopChan       chan struct{}
+	config          *config.Config
+	storage         *storage.Storage
+	sessionManager  *session.Manager
+	pollerManager   *poller.Manager
+	server          *http.Server
+	logger          *logger.Logger
+	stopChan        chan struct{}
+	pluginCtx       context.Context
+	pluginCtxCancel context.CancelFunc
 }
 
 func New(cfg *config.Config, store *storage.Storage) *Daemon {
@@ -68,6 +71,8 @@ func (d *Daemon) Start() error {
 	if err := d.processQueue(); err != nil {
 		d.logger.Warn("failed to process queue", slog.String("error", err.Error()))
 	}
+
+	d.startPlugins(ctx)
 
 	d.setupPollers()
 	d.pollerManager.StartWithContext(ctx)
@@ -155,6 +160,43 @@ func (d *Daemon) processQueue() error {
 		slog.Int("successful", successCount),
 		slog.Int("total", len(queuedEvents)))
 	return nil
+}
+
+func (d *Daemon) startPlugins(ctx context.Context) {
+	pluginCtx, cancel := context.WithCancel(ctx)
+	d.pluginCtx = pluginCtx
+	d.pluginCtxCancel = cancel
+
+	allPlugins := plugins.List()
+	for _, plugin := range allPlugins {
+		pluginName := plugin.Name()
+		if !d.config.IsPluginEnabled(pluginName) {
+			d.logger.Debug("plugin disabled, skipping",
+				slog.String("plugin", pluginName))
+			continue
+		}
+
+		pluginCfgMap, ok := d.config.GetPluginConfig(pluginName)
+		if !ok {
+			d.logger.Warn("plugin config not found",
+				slog.String("plugin", pluginName))
+			continue
+		}
+
+		pluginCfgMap["enabled"] = true
+
+		pluginConfigCtx := context.WithValue(pluginCtx, "config", pluginCfgMap)
+
+		if err := plugin.Start(pluginConfigCtx); err != nil {
+			d.logger.Error("failed to start plugin",
+				slog.String("plugin", pluginName),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		d.logger.Info("plugin started",
+			slog.String("plugin", pluginName))
+	}
 }
 
 func (d *Daemon) setupPollers() {
@@ -275,6 +317,13 @@ func (d *Daemon) setupPollers() {
 func (d *Daemon) Shutdown() error {
 	d.logger.Info("shutting down daemon")
 	close(d.stopChan)
+
+	if d.pluginCtxCancel != nil {
+		d.logger.Debug("stopping plugins")
+		d.pluginCtxCancel()
+		time.Sleep(500 * time.Millisecond)
+		d.logger.Debug("plugins stopped")
+	}
 
 	if d.pollerManager != nil {
 		d.pollerManager.Stop()

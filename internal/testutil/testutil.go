@@ -35,7 +35,7 @@ func NewTestConfig() *config.Config {
 	return &config.Config{
 		HTTP:              config.HTTPConfig{Port: 8573},
 		SessionGapMinutes: 45,
-		Modules:           make(map[string]config.ModuleConfig),
+		Modules:           make(map[string]config.ComponentConfig),
 	}
 }
 
