@@ -16,6 +16,7 @@ import (
 	"devlog/internal/config"
 	"devlog/internal/logger"
 	"devlog/internal/plugins"
+	_ "devlog/internal/plugins/llm"
 	"devlog/internal/poller"
 	"devlog/internal/queue"
 	"devlog/internal/session"
