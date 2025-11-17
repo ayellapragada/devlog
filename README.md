@@ -1,5 +1,7 @@
 # DevLog
 
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/ayellapragada/devlog?utm_source=oss&utm_medium=github&utm_campaign=ayellapragada%2Fdevlog&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
 ## Overview
 
 A local development journaling system that automatically captures development activity and stores it in a database for future review and logging.
