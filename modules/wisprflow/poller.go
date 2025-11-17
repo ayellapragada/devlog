@@ -3,7 +3,6 @@ package wisprflow
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"devlog/internal/events"
@@ -104,8 +103,4 @@ func (p *Poller) Poll(ctx context.Context) ([]*events.Event, error) {
 	}
 
 	return result, nil
-}
-
-func (p *Poller) ShouldRetryOnError(err error) bool {
-	return !strings.Contains(err.Error(), "UNIQUE constraint failed")
 }

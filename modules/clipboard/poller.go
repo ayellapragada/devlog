@@ -86,10 +86,6 @@ func (p *Poller) Poll(ctx context.Context) ([]*events.Event, error) {
 	return []*events.Event{event}, nil
 }
 
-func (p *Poller) ShouldRetryOnError(err error) bool {
-	return true
-}
-
 func hashContent(content string) string {
 	h := sha256.New()
 	h.Write([]byte(content))

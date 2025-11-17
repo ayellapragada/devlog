@@ -109,9 +109,9 @@ func (m *Manager) doPoll(ctx context.Context, poller Poller) {
 		insertCancel()
 
 		if err != nil {
-			pollerLogger.Error("failed to insert event",
+			pollerLogger.Debug("skipping event",
 				slog.String("event_id", event.ID),
-				slog.String("error", err.Error()))
+				slog.String("reason", err.Error()))
 			continue
 		}
 		successCount++
