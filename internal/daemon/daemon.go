@@ -226,6 +226,11 @@ func (d *Daemon) setupPollers() {
 			minLength = int(ml)
 		}
 
+		dedupHistorySize := 5
+		if dhs, ok := modCfg["dedup_history_size"].(float64); ok {
+			dedupHistorySize = int(dhs)
+		}
+
 		duration, err := time.ParseDuration(pollInterval)
 		if err != nil {
 			d.logger.Warn("invalid clipboard poll_interval, using default",
@@ -246,6 +251,7 @@ func (d *Daemon) setupPollers() {
 			duration,
 			maxLength,
 			minLength,
+			dedupHistorySize,
 		)
 		if err != nil {
 			d.logger.Warn("clipboard poller creation failed",

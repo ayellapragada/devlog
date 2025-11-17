@@ -66,9 +66,10 @@ func (m *Module) Uninstall(ctx *modules.InstallContext) error {
 
 func (m *Module) DefaultConfig() interface{} {
 	return map[string]interface{}{
-		"poll_interval": "3s",
-		"max_length":    10000,
-		"min_length":    1,
+		"poll_interval":      "3s",
+		"max_length":         10000,
+		"min_length":         1,
+		"dedup_history_size": 5,
 	}
 }
 

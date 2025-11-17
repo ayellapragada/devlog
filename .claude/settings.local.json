@@ -5,7 +5,8 @@
       "Bash(go build:*)",
       "Bash(./devlog:*)",
       "Bash(./devlog help)",
-      "Bash(go list:*)"
+      "Bash(go list:*)",
+      "Bash(go test:*)"
     ],
     "deny": [],
     "ask": []
