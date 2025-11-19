@@ -2,7 +2,7 @@
 
 This directory contains the main entry points for DevLog's command-line binary.
 
-## Binaries
+## Binary
 
 ### [devlog](devlog/)
 
@@ -15,23 +15,16 @@ The main CLI binary that provides all user-facing functionality.
 - Module and plugin management
 - Event viewing and searching
 - Configuration management
+- Background daemon management
 
 **Key Responsibilities:**
 - Command parsing and routing
-- Daemon lifecycle management (start/stop/restart)
+- Daemon lifecycle management (start/stop/restart via `devlog daemon start`)
 - Query the database
 - Module installation and configuration
 - Plugin installation and configuration
 
-### [devlogd](devlogd/)
-
-Internal daemon binary - **not for public use**. Contains duplicate daemon startup code.
-
-**Location:** `cmd/devlogd/main.go`
-
-**Status:** Internal implementation detail. Users should use `devlog daemon start` instead.
-
-**Note:** This binary and `cmd/devlog/commands/daemon.go` contain duplicate implementations that both call `internal/daemon`. The CLI provides the public interface.
+**Note:** The daemon runs as a detached subprocess of the CLI binary itself. When you run `devlog daemon start`, it spawns itself in background mode.
 
 ## Architecture
 

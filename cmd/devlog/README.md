@@ -97,6 +97,6 @@ This installs to `~/bin/devlog` by default.
 ## See Also
 
 - [Main README](../../README.md) - Project overview and quick start
-- [cmd/devlogd](../devlogd/README.md) - Daemon implementation
+- [internal/daemon/](../../internal/daemon/) - Daemon implementation
 - [modules/](../../modules/README.md) - Available modules
 - [plugins/](../../plugins/README.md) - Available plugins

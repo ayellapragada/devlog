@@ -30,7 +30,7 @@ All plugins in this directory:
 1. Implement the `Plugin` interface from [internal/plugins](../internal/plugins/)
 2. Use `common.InstallContext` from [internal/common](../internal/common/) for installation
 3. Register themselves via `init()` function using `plugins.Register()`
-4. Are imported in [cmd/devlogd/main.go](../cmd/devlogd/main.go) with blank imports
+4. Are imported in [cmd/devlog/main.go](../cmd/devlog/main.go) with blank imports
 5. Run in isolated goroutines with individual contexts
 6. Managed by daemon's plugin lifecycle system in [internal/daemon/plugins.go](../internal/daemon/plugins.go)
 7. Support graceful shutdown and hot-reload
@@ -111,7 +111,7 @@ func (p *YourPlugin) ValidateConfig(config interface{}) error {
 - [ ] Implement all `Plugin` interface methods
 - [ ] Use `common.InstallContext` for Install/Uninstall
 - [ ] Register in `init()` using `plugins.Register()`
-- [ ] Add blank import in [cmd/devlogd/main.go](../cmd/devlogd/main.go)
+- [ ] Add blank import in [cmd/devlog/main.go](../cmd/devlog/main.go)
 - [ ] Use standardized error wrappers from [internal/errors](../internal/errors/)
 - [ ] Start() MUST return quickly (spawn goroutines for background work)
 - [ ] Read config from context using `contextkeys.PluginConfig`

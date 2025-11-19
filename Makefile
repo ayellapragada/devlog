@@ -1,12 +1,11 @@
 .PHONY: build test lint fmt clean install help
 
-# Build both binaries
+# Build binary
 build:
-	@echo "Building binaries..."
+	@echo "Building binary..."
 	@mkdir -p bin
 	go build -o bin/devlog ./cmd/devlog
-	go build -o bin/devlogd ./cmd/devlogd
-	@echo "Built: bin/devlog, bin/devlogd"
+	@echo "Built: bin/devlog"
 
 # Run tests with coverage
 test:
@@ -29,11 +28,10 @@ lint:
 	@echo "Running linters..."
 	golangci-lint run
 
-# Install binaries to $GOPATH/bin
+# Install binary to $GOPATH/bin
 install:
 	@echo "Installing to $GOPATH/bin..."
 	go install ./cmd/devlog
-	go install ./cmd/devlogd
 
 # Clean build artifacts
 clean:
@@ -49,12 +47,12 @@ help:
 	@echo "DevLog Makefile"
 	@echo ""
 	@echo "Targets:"
-	@echo "  build         Build both binaries to bin/"
+	@echo "  build         Build binary to bin/"
 	@echo "  test          Run tests with coverage"
 	@echo "  test-verbose  Run tests with detailed coverage"
 	@echo "  fmt           Format code with goimports"
 	@echo "  lint          Run golangci-lint"
 	@echo "  check         Run fmt, lint, and test (pre-commit)"
-	@echo "  install       Install binaries to \$$GOPATH/bin"
+	@echo "  install       Install binary to \$$GOPATH/bin"
 	@echo "  clean         Remove build artifacts"
 	@echo "  help          Show this help"

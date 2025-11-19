@@ -304,8 +304,7 @@ make lint           # Run linter
 ```
 devlog/
 ├── cmd/
-│   ├── devlog/       # CLI binary
-│   └── devlogd/      # Daemon binary (unused, merged into CLI)
+│   └── devlog/       # CLI binary (includes daemon functionality)
 ├── internal/         # Core libraries
 │   ├── api/          # HTTP API handlers
 │   ├── daemon/       # Daemon coordinator
