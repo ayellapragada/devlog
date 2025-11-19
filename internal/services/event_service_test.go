@@ -329,3 +329,43 @@ func TestErrEventFiltered(t *testing.T) {
 		t.Error("ErrEventFiltered has empty message")
 	}
 }
+
+func TestEventService_DynamicConfigChange(t *testing.T) {
+	store := testutil.NewTestStorage(t)
+	cfg := testutil.NewTestConfig()
+	cfg.Modules["shell"] = config.ComponentConfig{
+		Enabled: true,
+		Config: map[string]interface{}{
+			"ignore_list": []interface{}{"ls"},
+		},
+	}
+
+	service := NewEventService(store, configGetter(cfg), nil)
+	ctx := context.Background()
+
+	lsEvent := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	lsEvent.Payload["command"] = "ls"
+
+	err := service.IngestEvent(ctx, lsEvent)
+	if !errors.Is(err, ErrEventFiltered) {
+		t.Errorf("expected ls to be filtered, got %v", err)
+	}
+
+	cfg.Modules["shell"] = config.ComponentConfig{
+		Enabled: true,
+		Config: map[string]interface{}{
+			"ignore_list": []interface{}{"cd"},
+		},
+	}
+
+	err = service.IngestEvent(ctx, lsEvent)
+	testutil.AssertNoError(t, err, "ls should not be filtered after config change")
+
+	cdEvent := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	cdEvent.Payload["command"] = "cd /tmp"
+
+	err = service.IngestEvent(ctx, cdEvent)
+	if !errors.Is(err, ErrEventFiltered) {
+		t.Errorf("expected cd to be filtered after config change, got %v", err)
+	}
+}

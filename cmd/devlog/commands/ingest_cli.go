@@ -11,6 +11,21 @@ func IngestCommand() *cli.Command {
 		Hidden: true,
 		Subcommands: []*cli.Command{
 			{
+				Name:  "kubectl",
+				Usage: "Ingest a kubectl event (used by kubectl wrapper)",
+				Flags: []cli.Flag{
+					&cli.StringFlag{Name: "operation", Usage: "Operation type (apply, create, delete, get, describe, edit, patch, logs, exec, debug)", Required: true},
+					&cli.StringFlag{Name: "context", Usage: "Kubectl context", Required: true},
+					&cli.StringFlag{Name: "cluster", Usage: "Cluster name"},
+					&cli.StringFlag{Name: "namespace", Usage: "Namespace", Required: true},
+					&cli.StringFlag{Name: "resource-type", Usage: "Resource type (pod, deployment, service, etc.)"},
+					&cli.StringFlag{Name: "resource-names", Usage: "Resource names"},
+					&cli.StringFlag{Name: "resource-count", Usage: "Number of resources affected"},
+					&cli.IntFlag{Name: "exit-code", Usage: "Command exit code", Value: 0},
+				},
+				Action: ingestKubectlEventCli,
+			},
+			{
 				Name:  "git-commit",
 				Usage: "Ingest a git commit event (used by git hooks)",
 				Flags: []cli.Flag{
@@ -153,4 +168,28 @@ func ingestTmuxEventCli(c *cli.Context) error {
 		args = append(args, "--client", v)
 	}
 	return ingestTmuxEvent(args)
+}
+
+func ingestKubectlEventCli(c *cli.Context) error {
+	args := []string{
+		"--operation", c.String("operation"),
+		"--context", c.String("context"),
+		"--namespace", c.String("namespace"),
+	}
+	if v := c.String("cluster"); v != "" {
+		args = append(args, "--cluster", v)
+	}
+	if v := c.String("resource-type"); v != "" {
+		args = append(args, "--resource-type", v)
+	}
+	if v := c.String("resource-names"); v != "" {
+		args = append(args, "--resource-names", v)
+	}
+	if v := c.String("resource-count"); v != "" {
+		args = append(args, "--resource-count", v)
+	}
+	if c.IsSet("exit-code") {
+		args = append(args, "--exit-code", c.String("exit-code"))
+	}
+	return ingestKubectlEvent(args)
 }

@@ -26,6 +26,30 @@ devlog module install git
 
 The git module installs a wrapper script to `~/.local/bin/git` that intercepts git commands and sends events to the DevLog daemon after successful operations.
 
+### kubectl
+**Location:** [modules/kubectl/](kubectl/)
+
+Captures kubectl operations automatically by installing a kubectl command wrapper.
+
+**Events Captured:**
+- apply
+- create
+- delete
+- get
+- describe
+- edit
+- patch
+- logs
+- exec
+- debug
+
+**Installation:**
+```bash
+devlog module install kubectl
+```
+
+The kubectl module installs wrapper scripts to `~/.local/bin/kubectl` and `~/.local/bin/k` that intercept kubectl commands and send events to the DevLog daemon after successful operations.
+
 ### shell
 **Location:** [modules/shell/](shell/)
 

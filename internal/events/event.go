@@ -19,6 +19,7 @@ const (
 	SourceClipboard EventSource = "clipboard"
 	SourceTmux      EventSource = "tmux"
 	SourceClaude    EventSource = "claude"
+	SourceKubectl   EventSource = "kubectl"
 )
 
 func (s EventSource) String() string {
@@ -27,7 +28,7 @@ func (s EventSource) String() string {
 
 func (s EventSource) Validate() error {
 	switch s {
-	case SourceGit, SourceShell, SourceWisprflow, SourceManual, SourceGitHub, SourceClipboard, SourceTmux, SourceClaude:
+	case SourceGit, SourceShell, SourceWisprflow, SourceManual, SourceGitHub, SourceClipboard, SourceTmux, SourceClaude, SourceKubectl:
 		return nil
 	default:
 		return fmt.Errorf("invalid source: %s", s)
@@ -37,28 +38,38 @@ func (s EventSource) Validate() error {
 type EventType string
 
 const (
-	TypeCommit        EventType = "commit"
-	TypeMerge         EventType = "merge"
-	TypePush          EventType = "push"
-	TypePull          EventType = "pull"
-	TypeFetch         EventType = "fetch"
-	TypeCheckout      EventType = "checkout"
-	TypeRebase        EventType = "rebase"
-	TypeStash         EventType = "stash"
-	TypeCommand       EventType = "command"
-	TypeNote          EventType = "note"
-	TypePRMerged      EventType = "pr_merged"
-	TypeContextSwitch EventType = "context_switch"
-	TypeTranscription EventType = "transcription"
-	TypeCopy          EventType = "copy"
-	TypeTmuxSession   EventType = "tmux_session"
-	TypeTmuxWindow    EventType = "tmux_window"
-	TypeTmuxPane      EventType = "tmux_pane"
-	TypeTmuxAttach    EventType = "tmux_attach"
-	TypeTmuxDetach    EventType = "tmux_detach"
-	TypeConversation  EventType = "conversation"
-	TypeFileEdit      EventType = "file_edit"
-	TypeOther         EventType = "other"
+	TypeCommit          EventType = "commit"
+	TypeMerge           EventType = "merge"
+	TypePush            EventType = "push"
+	TypePull            EventType = "pull"
+	TypeFetch           EventType = "fetch"
+	TypeCheckout        EventType = "checkout"
+	TypeRebase          EventType = "rebase"
+	TypeStash           EventType = "stash"
+	TypeCommand         EventType = "command"
+	TypeNote            EventType = "note"
+	TypePRMerged        EventType = "pr_merged"
+	TypeContextSwitch   EventType = "context_switch"
+	TypeTranscription   EventType = "transcription"
+	TypeCopy            EventType = "copy"
+	TypeTmuxSession     EventType = "tmux_session"
+	TypeTmuxWindow      EventType = "tmux_window"
+	TypeTmuxPane        EventType = "tmux_pane"
+	TypeTmuxAttach      EventType = "tmux_attach"
+	TypeTmuxDetach      EventType = "tmux_detach"
+	TypeConversation    EventType = "conversation"
+	TypeFileEdit        EventType = "file_edit"
+	TypeKubectlApply    EventType = "kubectl_apply"
+	TypeKubectlCreate   EventType = "kubectl_create"
+	TypeKubectlDelete   EventType = "kubectl_delete"
+	TypeKubectlGet      EventType = "kubectl_get"
+	TypeKubectlDescribe EventType = "kubectl_describe"
+	TypeKubectlEdit     EventType = "kubectl_edit"
+	TypeKubectlPatch    EventType = "kubectl_patch"
+	TypeKubectlLogs     EventType = "kubectl_logs"
+	TypeKubectlExec     EventType = "kubectl_exec"
+	TypeKubectlDebug    EventType = "kubectl_debug"
+	TypeOther           EventType = "other"
 )
 
 func (t EventType) String() string {
@@ -71,6 +82,8 @@ func (t EventType) Validate() error {
 		TypeCommand, TypeNote, TypePRMerged, TypeContextSwitch, TypeTranscription, TypeCopy,
 		TypeTmuxSession, TypeTmuxWindow, TypeTmuxPane, TypeTmuxAttach, TypeTmuxDetach,
 		TypeConversation, TypeFileEdit,
+		TypeKubectlApply, TypeKubectlCreate, TypeKubectlDelete, TypeKubectlGet, TypeKubectlDescribe,
+		TypeKubectlEdit, TypeKubectlPatch, TypeKubectlLogs, TypeKubectlExec, TypeKubectlDebug,
 		TypeOther:
 		return nil
 	default:

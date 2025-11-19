@@ -158,7 +158,7 @@ func (d *Daemon) restartExtension(extensionType, name string) {
 		if _, ok := module.(modules.Pollable); ok {
 			d.restartModule(name)
 		} else {
-			d.logger.Info("module config changed (no runtime component, changes will apply on daemon restart)",
+			d.logger.Info("module config changed",
 				slog.String("module", name))
 		}
 	}

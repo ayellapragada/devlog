@@ -231,17 +231,16 @@ storage:
 
 ### Hot Reload
 
-Some configuration changes can be applied without restart:
-- Module enable/disable
-- Module configuration changes
-- Plugin enable/disable
-- Plugin configuration changes
+Configuration changes are applied automatically without daemon restart:
+- Module and Plugin enable/disable
+- Module and Plugin configuration changes 
 
 The daemon automatically detects config changes and:
-- Restarts affected modules
+- Restarts pollable modules (modules with background tasks)
 - Restarts affected plugins
 - Validates new configuration
 - Falls back to old config on errors
+- Non-polling modules have their config updated immediately
 
 ## Logging
 

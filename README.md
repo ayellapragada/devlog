@@ -79,6 +79,7 @@ Choose which sources to capture from:
 
 ```bash
 devlog module install git       # Git operations
+devlog module install kubectl   # Kubernetes operations
 devlog module install shell     # Shell commands
 devlog module install clipboard # Clipboard monitoring
 devlog module install tmux      # Tmux session tracking
@@ -215,6 +216,7 @@ Poll-based (periodic checks):
 
 ### Module Documentation
 - [Git Module](modules/git/README.md) - Git operation capture
+- [Kubectl Module](modules/kubectl/README.md) - Kubernetes operation capture
 - [Shell Module](modules/shell/README.md) - Shell command tracking
 - [Claude Module](modules/claude/README.md) - Claude Code integration
 - [Clipboard Module](modules/clipboard/README.md) - Clipboard monitoring
