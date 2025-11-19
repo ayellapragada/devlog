@@ -1,6 +1,9 @@
-# modules/
+# Modules
 
-This directory contains pluggable modules that capture development events from various sources. Each module implements the Module interface and registers itself for installation via the CLI.
+This directory contains pluggable modules that capture development events from various sources.
+Each module implements the Module interface and registers itself for installation via the CLI.
+
+This is explicitly only used for ingesting events from new sources.
 
 ## Available Modules
 

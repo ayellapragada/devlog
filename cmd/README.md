@@ -25,9 +25,13 @@ The main CLI binary that provides all user-facing functionality.
 
 ### [devlogd](devlogd/)
 
-Legacy daemon binary - **no longer used**. The daemon functionality has been merged into the main `devlog` binary.
+Internal daemon binary - **not for public use**. Contains duplicate daemon startup code.
 
-**Status:** Deprecated, kept for reference only
+**Location:** `cmd/devlogd/main.go`
+
+**Status:** Internal implementation detail. Users should use `devlog daemon start` instead.
+
+**Note:** This binary and `cmd/devlog/commands/daemon.go` contain duplicate implementations that both call `internal/daemon`. The CLI provides the public interface.
 
 ## Architecture
 

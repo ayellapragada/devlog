@@ -1,10 +1,14 @@
-# plugins
+# Plugins
 
 Plugin implementations for devlog.
 
+Plugins here add extra functionality, for exmple summarizing, or processing or exporting in some way.
+
 ## Overview
 
-This directory contains concrete plugin implementations that extend devlog with additional functionality. Plugins run as background processes in the daemon and can add AI-powered features, integrations, and automated workflows.
+This directory contains concrete plugin implementations that extend devlog with additional functionality.
+
+Plugins run as background processes in the daemon and can add AI-powered features, integrations, and automated workflows.
 
 ## Available Plugins
 
