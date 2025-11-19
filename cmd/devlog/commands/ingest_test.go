@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"devlog/internal/ingest"
 )
 
 func TestFindGitRepo(t *testing.T) {
@@ -20,7 +22,7 @@ func TestFindGitRepo(t *testing.T) {
 	}
 
 	t.Run("finds repo from root", func(t *testing.T) {
-		result, err := FindGitRepo(filepath.Join(tmpDir, "project"))
+		result, err := ingest.FindGitRepo(filepath.Join(tmpDir, "project"))
 		if err != nil {
 			t.Fatalf("Expected to find git repo, got error: %v", err)
 		}
@@ -32,7 +34,7 @@ func TestFindGitRepo(t *testing.T) {
 	})
 
 	t.Run("finds repo from subdirectory", func(t *testing.T) {
-		result, err := FindGitRepo(repoDir)
+		result, err := ingest.FindGitRepo(repoDir)
 		if err != nil {
 			t.Fatalf("Expected to find git repo, got error: %v", err)
 		}
@@ -49,14 +51,14 @@ func TestFindGitRepo(t *testing.T) {
 			t.Fatalf("Failed to create non-git directory: %v", err)
 		}
 
-		_, err := FindGitRepo(nonGitDir)
+		_, err := ingest.FindGitRepo(nonGitDir)
 		if err == nil {
 			t.Error("Expected error when not in git repo")
 		}
 	})
 
 	t.Run("handles root directory", func(t *testing.T) {
-		_, err := FindGitRepo("/")
+		_, err := ingest.FindGitRepo("/")
 		if err == nil {
 			t.Error("Expected error when searching from root")
 		}
@@ -84,7 +86,7 @@ func TestFindGitRepoNestedRepos(t *testing.T) {
 	}
 
 	t.Run("finds nearest repo", func(t *testing.T) {
-		result, err := FindGitRepo(innerRepoDir)
+		result, err := ingest.FindGitRepo(innerRepoDir)
 		if err != nil {
 			t.Fatalf("Expected to find git repo, got error: %v", err)
 		}
