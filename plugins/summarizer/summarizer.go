@@ -13,6 +13,7 @@ import (
 
 	"devlog/internal/config"
 	"devlog/internal/contextkeys"
+	"devlog/internal/errors"
 	"devlog/internal/events"
 	"devlog/internal/install"
 	"devlog/internal/llm"
@@ -31,12 +32,8 @@ type Plugin struct {
 }
 
 type Config struct {
-	Provider             string `json:"provider"`
-	APIKey               string `json:"api_key"`
-	BaseURL              string `json:"base_url,omitempty"`
-	Model                string `json:"model,omitempty"`
-	IntervalMinutes      int    `json:"interval_minutes"`
-	ContextWindowMinutes int    `json:"context_window_minutes"`
+	IntervalMinutes      int `json:"interval_minutes"`
+	ContextWindowMinutes int `json:"context_window_minutes"`
 }
 
 func init() {
@@ -51,10 +48,18 @@ func (p *Plugin) Description() string {
 	return "Periodically summarizes dev activity using an LLM"
 }
 
+func (p *Plugin) Metadata() plugins.Metadata {
+	return plugins.Metadata{
+		Name:         "summarizer",
+		Description:  "Periodically summarizes dev activity using an LLM",
+		Dependencies: []string{"llm"},
+	}
+}
+
 func (p *Plugin) Install(ctx *install.Context) error {
 	ctx.Log("Installing Summarizer plugin")
-	ctx.Log("This plugin requires an LLM provider (ollama, anthropic, etc.)")
-	ctx.Log("Configure your provider and API settings in the plugin configuration")
+	ctx.Log("This plugin requires the 'llm' plugin to be enabled")
+	ctx.Log("Configure the LLM provider in the 'llm' plugin configuration")
 	return nil
 }
 
@@ -65,9 +70,6 @@ func (p *Plugin) Uninstall(ctx *install.Context) error {
 
 func (p *Plugin) DefaultConfig() interface{} {
 	return &Config{
-		Provider:             "ollama",
-		BaseURL:              "http://localhost:11434",
-		Model:                "qwen2.5:14b",
 		IntervalMinutes:      15,
 		ContextWindowMinutes: 60,
 	}
@@ -76,35 +78,12 @@ func (p *Plugin) DefaultConfig() interface{} {
 func (p *Plugin) ValidateConfig(config interface{}) error {
 	cfgMap, ok := config.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("config must be a map")
-	}
-
-	provider, ok := cfgMap["provider"].(string)
-	if !ok || provider == "" {
-		return fmt.Errorf("provider is required")
-	}
-
-	if provider != "ollama" && provider != "anthropic" {
-		return fmt.Errorf("provider must be 'ollama' or 'anthropic'")
-	}
-
-	if provider == "anthropic" {
-		apiKey, ok := cfgMap["api_key"].(string)
-		if !ok || apiKey == "" {
-			return fmt.Errorf("api_key is required for anthropic provider")
-		}
-	}
-
-	if provider == "ollama" {
-		baseURL, ok := cfgMap["base_url"].(string)
-		if !ok || baseURL == "" {
-			return fmt.Errorf("base_url is required for ollama provider")
-		}
+		return errors.NewValidation("config", "must be a map")
 	}
 
 	var interval float64
 	if val, ok := cfgMap["interval_minutes"]; !ok {
-		return fmt.Errorf("interval_minutes is required")
+		return errors.NewValidation("interval_minutes", "is required")
 	} else {
 		switch v := val.(type) {
 		case float64:
@@ -112,16 +91,16 @@ func (p *Plugin) ValidateConfig(config interface{}) error {
 		case int:
 			interval = float64(v)
 		default:
-			return fmt.Errorf("interval_minutes must be a number")
+			return errors.NewValidation("interval_minutes", "must be a number")
 		}
 	}
 	if interval < 1 || interval > 1440 {
-		return fmt.Errorf("interval_minutes must be between 1 and 1440")
+		return errors.NewValidation("interval_minutes", "must be between 1 and 1440")
 	}
 
 	var contextWindow float64
 	if val, ok := cfgMap["context_window_minutes"]; !ok {
-		return fmt.Errorf("context_window_minutes is required")
+		return errors.NewValidation("context_window_minutes", "is required")
 	} else {
 		switch v := val.(type) {
 		case float64:
@@ -129,51 +108,49 @@ func (p *Plugin) ValidateConfig(config interface{}) error {
 		case int:
 			contextWindow = float64(v)
 		default:
-			return fmt.Errorf("context_window_minutes must be a number")
+			return errors.NewValidation("context_window_minutes", "must be a number")
 		}
 	}
 	if contextWindow < 1 || contextWindow > 1440 {
-		return fmt.Errorf("context_window_minutes must be between 1 and 1440")
+		return errors.NewValidation("context_window_minutes", "must be between 1 and 1440")
 	}
 
 	if contextWindow < interval {
-		return fmt.Errorf("context_window_minutes must be greater than or equal to interval_minutes")
+		return errors.NewValidation("context_window_minutes", "must be greater than or equal to interval_minutes")
 	}
 
+	return nil
+}
+
+func (p *Plugin) InjectServices(services map[string]interface{}) error {
+	llmClient, ok := services["llm.client"]
+	if !ok {
+		return errors.WrapPlugin("summarizer", "inject services", fmt.Errorf("llm.client service not found"))
+	}
+
+	client, ok := llmClient.(llm.Client)
+	if !ok {
+		return errors.WrapPlugin("summarizer", "inject services", fmt.Errorf("llm.client service has wrong type"))
+	}
+
+	p.llmClient = client
 	return nil
 }
 
 func (p *Plugin) Start(ctx context.Context) error {
 	cfgMap, ok := ctx.Value(contextkeys.PluginConfig).(map[string]interface{})
 	if !ok || cfgMap == nil {
-		return fmt.Errorf("plugin config not found in context")
+		return errors.WrapPlugin("summarizer", "start", fmt.Errorf("plugin config not found in context"))
 	}
 
 	cfg := &Config{}
 	cfgBytes, err := json.Marshal(cfgMap)
 	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
+		return errors.WrapPlugin("summarizer", "marshal config", err)
 	}
 	if err := json.Unmarshal(cfgBytes, cfg); err != nil {
-		return fmt.Errorf("unmarshal config: %w", err)
+		return errors.WrapPlugin("summarizer", "unmarshal config", err)
 	}
-
-	if cfg.Provider == "" {
-		cfg.Provider = "ollama"
-	}
-
-	llmCfg := llm.Config{
-		Provider: llm.ProviderType(cfg.Provider),
-		APIKey:   cfg.APIKey,
-		BaseURL:  cfg.BaseURL,
-		Model:    cfg.Model,
-	}
-
-	llmClient, err := llm.NewClient(llmCfg)
-	if err != nil {
-		return fmt.Errorf("create LLM client: %w", err)
-	}
-	p.llmClient = llmClient
 
 	p.interval = time.Duration(cfg.IntervalMinutes) * time.Minute
 	p.contextWindow = time.Duration(cfg.ContextWindowMinutes) * time.Minute
@@ -181,13 +158,13 @@ func (p *Plugin) Start(ctx context.Context) error {
 
 	dataDir, err := config.DataDir()
 	if err != nil {
-		return fmt.Errorf("get data dir: %w", err)
+		return errors.WrapPlugin("summarizer", "get data dir", err)
 	}
 	dbPath := filepath.Join(dataDir, "events.db")
 
 	store, err := storage.New(dbPath)
 	if err != nil {
-		return fmt.Errorf("open storage: %w", err)
+		return errors.WrapPlugin("summarizer", "open storage", err)
 	}
 	p.storage = store
 

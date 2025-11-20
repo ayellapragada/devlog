@@ -21,44 +21,56 @@ Summaries are organized into daily markdown files with collapsible event details
 - **Collapsible event details**: Clean summaries with expandable event lists
 - **Empty period handling**: Creates placeholders when no activity is detected
 
+## Dependencies
+
+This plugin requires the **[llm](../llm/README.md)** plugin to be enabled and configured.
+
 ## Configuration
 
-### Ollama (Local)
+The summarizer plugin only configures timing - LLM settings are configured separately in the `llm` plugin.
+
+### With Ollama (Local)
 
 ```yaml
 plugins:
-  summarizer:
+  llm:
     enabled: true
     provider: ollama
     base_url: http://localhost:11434
-    model: qwen3:8b
+    model: qwen2.5:14b
+  summarizer:
+    enabled: true
     interval_minutes: 15
     context_window_minutes: 60
 ```
 
-### Anthropic (Cloud)
+### With Anthropic (Cloud)
 
 ```yaml
 plugins:
-  summarizer:
+  llm:
     enabled: true
     provider: anthropic
-    api_key: your-api-key-here
-    model: claude-haiku-4-5-20251001
+    api_key: sk-ant-...
+    model: claude-sonnet-4-5-20250929
+  summarizer:
+    enabled: true
     interval_minutes: 15
     context_window_minutes: 60
 ```
 
 ## Configuration Options
 
+### Summarizer Options
+
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
-| `provider` | string | Yes | LLM provider: `ollama` or `anthropic` |
-| `api_key` | string | For Anthropic | API key for Anthropic service |
-| `base_url` | string | For Ollama | Ollama server URL (default: `http://localhost:11434`) |
-| `model` | string | No | Model name (defaults: `qwen3:8b` for Ollama, `claude-haiku-4-5-20251001` for Anthropic) |
 | `interval_minutes` | int | Yes | Time interval between summaries (default: 15, range: 1-1440) |
 | `context_window_minutes` | int | Yes | Historical context window for LLM (default: 60, range: 1-1440, must be >= interval) |
+
+### LLM Options
+
+See [llm plugin documentation](../llm/README.md) for LLM configuration options.
 
 ### How Time Windows Work
 
@@ -115,16 +127,15 @@ markdown file generation.
 
 ## Requirements
 
-### For Ollama
-- Ollama running locally or accessible via network
-- A compatible model pulled and ready
-
-### For Anthropic
-- Valid Anthropic API key
-- Internet connection
-- API usage quota
+- **LLM plugin**: Must be enabled and configured (see [llm plugin](../llm/README.md))
+- Sufficient storage for summary markdown files
+- Events being captured by modules (git, shell, etc.)
 
 ## Privacy
 
+Privacy depends on your LLM provider configuration:
+
 - **Ollama**: All data stays local on your machine
 - **Anthropic**: Events are sent to Anthropic's API for processing
+
+See [llm plugin documentation](../llm/README.md#privacy) for more details.

@@ -8,6 +8,20 @@ import (
 	"devlog/internal/install"
 )
 
+type Metadata struct {
+	Name         string
+	Description  string
+	Dependencies []string
+}
+
+type ServiceProvider interface {
+	Services() map[string]interface{}
+}
+
+type ServiceInjector interface {
+	InjectServices(services map[string]interface{}) error
+}
+
 type Plugin interface {
 	Name() string
 	Description() string
@@ -16,6 +30,11 @@ type Plugin interface {
 	Start(ctx context.Context) error
 	DefaultConfig() interface{}
 	ValidateConfig(config interface{}) error
+	Metadata() Metadata
+}
+
+type Initializable interface {
+	Initialize(ctx context.Context) error
 }
 
 var (

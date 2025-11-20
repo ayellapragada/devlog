@@ -27,6 +27,7 @@ import (
 	_ "devlog/modules/claude"
 	_ "devlog/modules/clipboard"
 	_ "devlog/modules/wisprflow"
+	_ "devlog/plugins/llm"
 	_ "devlog/plugins/summarizer"
 )
 
@@ -59,6 +60,8 @@ type Daemon struct {
 	modules         map[string]string
 	modulesMu       sync.RWMutex
 	moduleCtx       context.Context
+	services        map[string]interface{}
+	servicesMu      sync.RWMutex
 }
 
 func New(cfg *config.Config, store *storage.Storage) *Daemon {
@@ -82,6 +85,7 @@ func New(cfg *config.Config, store *storage.Storage) *Daemon {
 		stopChan: make(chan struct{}),
 		plugins:  make(map[string]*pluginInstance),
 		modules:  make(map[string]string),
+		services: make(map[string]interface{}),
 	}
 
 	eventService := services.NewEventService(store, d.getConfig, log)

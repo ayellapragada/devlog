@@ -200,40 +200,49 @@ func pollSummarizer() error {
 		}
 	}
 
-	interval := time.Duration(intervalMins) * time.Minute
-	contextWindow := time.Duration(contextWindowMins) * time.Minute
+	if !cfg.IsPluginEnabled("llm") {
+		return fmt.Errorf("llm plugin is not enabled (required by summarizer)")
+	}
+
+	llmCfg, ok := cfg.GetPluginConfig("llm")
+	if !ok {
+		return fmt.Errorf("llm plugin config not found")
+	}
 
 	provider := "ollama"
-	if p, ok := pluginCfg["provider"].(string); ok {
+	if p, ok := llmCfg["provider"].(string); ok {
 		provider = p
 	}
 
 	apiKey := ""
-	if k, ok := pluginCfg["api_key"].(string); ok {
+	if k, ok := llmCfg["api_key"].(string); ok {
 		apiKey = k
 	}
 
 	baseURL := ""
-	if u, ok := pluginCfg["base_url"].(string); ok {
+	if u, ok := llmCfg["base_url"].(string); ok {
 		baseURL = u
 	}
 
 	model := ""
-	if m, ok := pluginCfg["model"].(string); ok {
+	if m, ok := llmCfg["model"].(string); ok {
 		model = m
 	}
 
-	llmCfg := llm.Config{
+	llmConfig := llm.Config{
 		Provider: llm.ProviderType(provider),
 		APIKey:   apiKey,
 		BaseURL:  baseURL,
 		Model:    model,
 	}
 
-	llmClient, err := llm.NewClient(llmCfg)
+	llmClient, err := llm.NewClient(llmConfig)
 	if err != nil {
 		return fmt.Errorf("create LLM client: %w", err)
 	}
+
+	interval := time.Duration(intervalMins) * time.Minute
+	contextWindow := time.Duration(contextWindowMins) * time.Minute
 
 	fmt.Printf("Configuration:\n")
 	fmt.Printf("  Provider: %s\n", provider)

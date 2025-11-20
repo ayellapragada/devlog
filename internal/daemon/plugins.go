@@ -16,6 +16,7 @@ type pluginInstance struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	plugin plugins.Plugin
 }
 
 func (d *Daemon) startPlugins(ctx context.Context) {
@@ -24,6 +25,8 @@ func (d *Daemon) startPlugins(ctx context.Context) {
 	d.pluginCtxCancel = cancel
 
 	allPlugins := plugins.List()
+	enabledPlugins := make([]plugins.Plugin, 0)
+
 	for _, plugin := range allPlugins {
 		pluginName := plugin.Name()
 		if !d.config.IsPluginEnabled(pluginName) {
@@ -31,9 +34,71 @@ func (d *Daemon) startPlugins(ctx context.Context) {
 				slog.String("plugin", pluginName))
 			continue
 		}
-
-		d.startPlugin(pluginCtx, plugin, pluginName)
+		enabledPlugins = append(enabledPlugins, plugin)
 	}
+
+	orderedPlugins, err := d.resolvePluginDependencies(enabledPlugins)
+	if err != nil {
+		d.logger.Error("failed to resolve plugin dependencies",
+			slog.String("error", err.Error()))
+		return
+	}
+
+	for _, plugin := range orderedPlugins {
+		d.startPlugin(pluginCtx, plugin, plugin.Name())
+	}
+}
+
+func (d *Daemon) resolvePluginDependencies(enabledPlugins []plugins.Plugin) ([]plugins.Plugin, error) {
+	pluginMap := make(map[string]plugins.Plugin)
+	for _, p := range enabledPlugins {
+		pluginMap[p.Name()] = p
+	}
+
+	visited := make(map[string]bool)
+	visiting := make(map[string]bool)
+	var ordered []plugins.Plugin
+
+	var visit func(string) error
+	visit = func(name string) error {
+		if visited[name] {
+			return nil
+		}
+		if visiting[name] {
+			return fmt.Errorf("circular dependency detected involving plugin %s", name)
+		}
+
+		plugin, exists := pluginMap[name]
+		if !exists {
+			return fmt.Errorf("plugin %s not found (required by another plugin)", name)
+		}
+
+		visiting[name] = true
+		metadata := plugin.Metadata()
+
+		for _, dep := range metadata.Dependencies {
+			depPlugin, exists := pluginMap[dep]
+			if !exists {
+				return fmt.Errorf("plugin %s depends on %s, but %s is not enabled", name, dep, dep)
+			}
+			if err := visit(depPlugin.Name()); err != nil {
+				return err
+			}
+		}
+
+		visiting[name] = false
+		visited[name] = true
+		ordered = append(ordered, plugin)
+		return nil
+	}
+
+	for _, plugin := range enabledPlugins {
+		if err := visit(plugin.Name()); err != nil {
+			return nil, err
+		}
+	}
+
+	return ordered, nil
 }
 
 func (d *Daemon) startPlugin(parentCtx context.Context, plugin plugins.Plugin, pluginName string) {
@@ -53,11 +118,51 @@ func (d *Daemon) startPlugin(parentCtx context.Context, plugin plugins.Plugin, p
 	instance := &pluginInstance{
 		ctx:    pluginCtx,
 		cancel: cancel,
+		plugin: plugin,
 	}
 
 	d.pluginsMu.Lock()
 	d.plugins[pluginName] = instance
 	d.pluginsMu.Unlock()
+
+	if initializable, ok := plugin.(plugins.Initializable); ok {
+		if err := initializable.Initialize(pluginConfigCtx); err != nil {
+			d.logger.Error("failed to initialize plugin",
+				slog.String("plugin", pluginName),
+				slog.String("error", err.Error()))
+			cancel()
+			return
+		}
+	}
+
+	if provider, ok := plugin.(plugins.ServiceProvider); ok {
+		d.servicesMu.Lock()
+		services := provider.Services()
+		for name, service := range services {
+			d.services[name] = service
+			d.logger.Debug("plugin registered service",
+				slog.String("plugin", pluginName),
+				slog.String("service", name))
+		}
+		d.servicesMu.Unlock()
+	}
+
+	if injector, ok := plugin.(plugins.ServiceInjector); ok {
+		d.servicesMu.RLock()
+		servicesCopy := make(map[string]interface{})
+		for k, v := range d.services {
+			servicesCopy[k] = v
+		}
+		d.servicesMu.RUnlock()
+
+		if err := injector.InjectServices(servicesCopy); err != nil {
+			d.logger.Error("failed to inject services into plugin",
+				slog.String("plugin", pluginName),
+				slog.String("error", err.Error()))
+			cancel()
+			return
+		}
+	}
 
 	instance.wg.Add(1)
 	d.pluginWG.Add(1)
@@ -74,6 +179,7 @@ func (d *Daemon) startPlugin(parentCtx context.Context, plugin plugins.Plugin, p
 				slog.String("error", err.Error()))
 			return
 		}
+
 		d.logger.Info("plugin stopped", slog.String("plugin", pluginName))
 	}()
 }

@@ -12,28 +12,84 @@ Plugins run as background processes in the daemon and can add AI-powered feature
 
 ## Available Plugins
 
+### [llm](./llm/README.md)
+
+LLM client service provider.
+
+**Features:**
+- Provides shared LLM client to other plugins
+- Supports multiple LLM providers (Anthropic, Ollama)
+- Centralized configuration for AI services
+
 ### [summarizer](./summarizer/README.md)
 
 AI-powered summarization plugin.
 
 **Features:**
-- Automatically generates natural language summaries of time intervals.
-- Supports multiple LLM providers (Currently: Anthropic Claude, Ollama)
-- Configurable polling interval and event thresholds
-- Groups events intelligently for coherent summaries
+- Automatically generates natural language summaries of time intervals
+- Clock-aligned scheduling for predictable summaries
+- Configurable time windows and intervals
 
-**Status:** Active
+**Dependencies:** `llm`
 
 ## Plugin Architecture
 
 All plugins in this directory:
 1. Implement the `Plugin` interface from [internal/plugins](../internal/plugins/)
-2. Use `common.InstallContext` from [internal/common](../internal/common/) for installation
-3. Register themselves via `init()` function using `plugins.Register()`
-4. Are imported in [cmd/devlog/main.go](../cmd/devlog/main.go) with blank imports
-5. Run in isolated goroutines with individual contexts
-6. Managed by daemon's plugin lifecycle system in [internal/daemon/plugins.go](../internal/daemon/plugins.go)
-7. Support graceful shutdown and hot-reload
+2. Declare metadata including dependencies via `Metadata()` method
+3. Use `install.Context` for installation/uninstallation
+4. Register themselves via `init()` function using `plugins.Register()`
+5. Are imported in [internal/daemon/daemon.go](../internal/daemon/daemon.go) with blank imports
+6. Run in isolated goroutines with individual contexts
+7. Managed by daemon's plugin lifecycle system with dependency resolution
+8. Support graceful shutdown and hot-reload
+
+### Plugin Dependencies
+
+Plugins can declare dependencies on other plugins:
+
+```go
+func (p *Plugin) Metadata() plugins.Metadata {
+    return plugins.Metadata{
+        Name:         "myplugin",
+        Description:  "My awesome plugin",
+        Dependencies: []string{"llm", "other-plugin"},
+    }
+}
+```
+
+The daemon automatically:
+- Resolves dependencies using topological sort
+- Starts plugins in dependency order
+- Fails startup if dependencies are missing or circular
+- Injects services from provider plugins
+
+### Service Providers
+
+Plugins can provide services to other plugins:
+
+```go
+func (p *Plugin) Services() map[string]interface{} {
+    return map[string]interface{}{
+        "myservice": p.serviceInstance,
+    }
+}
+```
+
+### Service Consumers
+
+Plugins receive services via injection:
+
+```go
+func (p *Plugin) InjectServices(services map[string]interface{}) error {
+    service, ok := services["myservice"]
+    if !ok {
+        return fmt.Errorf("required service not found")
+    }
+    p.service = service
+    return nil
+}
+```
 
 ## Creating a New Plugin
 
@@ -74,7 +130,15 @@ func (p *YourPlugin) Description() string {
     return "Description of what your plugin does"
 }
 
-func (p *YourPlugin) Install(ctx *plugins.InstallContext) error {
+func (p *YourPlugin) Metadata() plugins.Metadata {
+    return plugins.Metadata{
+        Name:         "yourplugin",
+        Description:  "Description of what your plugin does",
+        Dependencies: []string{},  // Add dependencies here, e.g., []string{"llm"}
+    }
+}
+
+func (p *YourPlugin) Install(ctx *install.Context) error {
     ctx.Log("Installing %s plugin...", p.Name())
     // Perform one-time setup
     return nil

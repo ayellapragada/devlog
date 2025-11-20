@@ -51,6 +51,14 @@ func (p *testPlugin) ValidateConfig(config interface{}) error {
 	return nil
 }
 
+func (p *testPlugin) Metadata() Metadata {
+	return Metadata{
+		Name:         p.Name(),
+		Description:  p.Description(),
+		Dependencies: []string{},
+	}
+}
+
 func TestPluginRegistry(t *testing.T) {
 	mu.Lock()
 	plugins = make(map[string]Plugin)
@@ -351,6 +359,14 @@ func (p *namedTestPlugin) DefaultConfig() interface{} {
 
 func (p *namedTestPlugin) ValidateConfig(config interface{}) error {
 	return nil
+}
+
+func (p *namedTestPlugin) Metadata() Metadata {
+	return Metadata{
+		Name:         p.Name(),
+		Description:  p.Description(),
+		Dependencies: []string{},
+	}
 }
 
 func TestMultiplePluginsConcurrent(t *testing.T) {

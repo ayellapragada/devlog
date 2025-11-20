@@ -29,6 +29,13 @@ func (p *testPlugin) DefaultConfig() interface{} { return p.defaultCfg }
 func (p *testPlugin) ValidateConfig(config interface{}) error {
 	return nil
 }
+func (p *testPlugin) Metadata() plugins.Metadata {
+	return plugins.Metadata{
+		Name:         p.name,
+		Description:  "test plugin",
+		Dependencies: []string{},
+	}
+}
 
 func TestPluginInstallStoresStructDefaultConfig(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
