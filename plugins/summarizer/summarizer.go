@@ -323,51 +323,139 @@ func (p *Plugin) buildPrompt(contextEvents, focusEvents []*events.Event) string 
 }
 
 func buildPrompt(contextEvents, focusEvents []*events.Event, formatter func(*events.Event) string) string {
+	contextBySource := groupEventsBySource(contextEvents)
+	focusBySource := groupEventsBySource(focusEvents)
+
 	prompt := `You are summarizing a development session. You will be given two sets of events:
 
 1. CONTEXT EVENTS: A longer time period showing what happened before the focus period
 2. FOCUS EVENTS: The shorter time period that you need to summarize
 
-Your task:
-- Use context events to understand the broader situation (what's being worked on, ongoing work)
-- ONLY summarize the focus events - they are the actual activity for this session
-- Do NOT summarize or mention specific activities from context events
-
-FORBIDDEN WORDS: "the user", "they", "likely", "appears", "trying", "frequently"
+Events are organized by source:
+- CRITICAL: Claude Code conversations, major project work
+- HIGH: GitHub activity, significant commits
+- MEDIUM: Git operations, kubectl commands
+- LOW: Shell commands, clipboard activity, background activity
 
 CONTEXT EVENTS (for background understanding only):
-` + formatted(contextEvents, formatter) + `
+` + formattedBySource(contextBySource, formatter) + `
 
 FOCUS EVENTS (summarize these):
-` + formatted(focusEvents, formatter) + `
+` + formattedBySource(focusBySource, formatter) + `
+
+===== INSTRUCTIONS =====
 
 Generate a two-part summary:
 
-PART 1 - Metadata context (one sentence):
-State what projects are being worked on, what branches if relevant. Keep this brief and factual.
+PART 1 - Context line (max 80 characters):
+State the project/repository and branch being worked on. Use format: "The <repo> repository on <branch> branch"
 
-PART 2 - Activity summary (2-4 bullet points):
-Describe what actually happened in this session:
-- What meaningful development activities occurred?
-- Consolidate repetitive or low-value commands
-- Mention specific filenames when relevant
+PART 2 - Activity summary (exactly 3 bullet points):
+Each bullet must be a complete sentence in past tense describing what was accomplished.
 
-Format your response exactly as:
-<One sentence about project/branch context>
+CONSOLIDATION RULES:
+- If >3 similar commands/operations: "Ran multiple <type> checks" or "Made several <component> changes"
+- If repetitive debugging: "Debugged <issue>" not a list of each debug command
+- If exploring/researching: "Investigated <topic> in <files>" not each individual grep/read
 
-- <Activity bullet point 1>
-- <Activity bullet point 2>
-- <Activity bullet point 3 if needed>
-- <Activity bullet point 4 if needed>`
+PRIORITIZATION (in order of importance):
+1. CRITICAL events: Major design decisions, architectural discussions, feature implementations
+2. HIGH events: Code commits, PR creation, significant git operations
+3. MEDIUM events: Only include if they provide essential context to CRITICAL/HIGH events
+4. LOW events: Omit unless they reveal a clear pattern (e.g., "Monitored Kubernetes cluster health")
+
+WRITING RULES:
+✓ Use past tense: "Implemented", "Fixed", "Refactored", "Discussed"
+✓ Be specific: Include file names, component names, function names when relevant
+✓ Be direct: Start bullets with action verbs
+✓ Be dense: Pack multiple related actions into one bullet
+
+✗ Never use: "the user", "they", "I", "we", "appears", "seems", "likely", "probably"
+✗ No meta-commentary: "Focused on", "Worked on", "Continued to", "Spent time"
+✗ No vague actions: "Made changes", "Updated files", "Ran commands"
+✗ No question marks or uncertainty
+
+EXAMPLES:
+
+BAD:
+The devlog repository on main branch
+
+- The user worked on improving the summarizer plugin
+- They ran multiple git status commands to check the repository state
+- Made changes to some configuration files
+
+BAD:
+Working in wisprflow project
+
+- Discussed whether to add a priority field to events or create a new event type
+- Considered database migration implications
+- Looked at event handling code
+
+GOOD:
+The devlog repository on main branch
+
+- Refactored summarizer plugin prompt to enforce information density and consolidation rules in plugins/summarizer/summarizer.go
+- Discussed priority system implementation for event types with focus on distinguishing high-value development activities
+- Debugged shell integration issues related to event capture timing
+
+GOOD:
+The wisprflow repository on feature/events branch
+
+- Evaluated priority field addition versus new event type creation for handling urgent notifications
+- Analyzed database schema migration requirements and backwards compatibility concerns in internal/events/schema.go
+- Reviewed event processing pipeline to determine type-checking approach versus database queries
+
+===== OUTPUT FORMAT =====
+
+<One line context, max 80 chars>
+
+- <Bullet point 1: most important activity>
+- <Bullet point 2: second most important activity>
+- <Bullet point 3: third most important activity>
+
+Generate the summary now, following ALL rules above:`
 
 	return prompt
 }
 
-func formatted(events []*events.Event, formatter func(*events.Event) string) string {
-	var sb strings.Builder
-	for _, evt := range events {
-		sb.WriteString(formatter(evt) + "\n")
+func groupEventsBySource(evts []*events.Event) map[string][]*events.Event {
+	grouped := make(map[string][]*events.Event)
+	for _, evt := range evts {
+		grouped[evt.Source] = append(grouped[evt.Source], evt)
 	}
+	return grouped
+}
+
+func formattedBySource(eventsBySource map[string][]*events.Event, formatter func(*events.Event) string) string {
+	var sb strings.Builder
+
+	sources := []struct {
+		name  string
+		label string
+	}{
+		{"claude", "CRITICAL"},
+		{"github", "HIGH"},
+		{"git", "MEDIUM"},
+		{"kubectl", "MEDIUM"},
+		{"shell", "LOW"},
+		{"clipboard", "LOW"},
+		{"tmux", "LOW"},
+		{"wisprflow", "LOW"},
+		{"manual", "MEDIUM"},
+	}
+
+	for _, s := range sources {
+		evts := eventsBySource[s.name]
+		if len(evts) == 0 {
+			continue
+		}
+
+		sb.WriteString(fmt.Sprintf("\n=== %s: %s (%d events) ===\n", s.label, s.name, len(evts)))
+		for _, evt := range evts {
+			sb.WriteString(formatter(evt) + "\n")
+		}
+	}
+
 	return sb.String()
 }
 
@@ -422,7 +510,12 @@ func FormatEvent(evt *events.Event) string {
 		line += fmt.Sprintf(" (workdir: %s)", workdir)
 	}
 
-	if msg, ok := evt.Payload["message"].(string); ok && msg != "" {
+	if summary, ok := evt.Payload["summary"].(string); ok && summary != "" {
+		if len(summary) > 200 {
+			summary = summary[:200] + "..."
+		}
+		line += fmt.Sprintf(": %s", summary)
+	} else if msg, ok := evt.Payload["message"].(string); ok && msg != "" {
 		line += fmt.Sprintf(": %s", msg)
 	} else if cmd, ok := evt.Payload["command"].(string); ok && cmd != "" {
 		line += fmt.Sprintf(": %s", cmd)
