@@ -348,9 +348,9 @@ FOCUS EVENTS (summarize these):
 Generate a two-part summary:
 
 PART 1 - Context line (max 80 characters):
-State the project/repository and branch being worked on. Use format: "The <repo> repository on <branch> branch"
+State the project/repository and branch being worked on. Use format: "Working on: <repo> (<branch>)"
 
-PART 2 - Activity summary (exactly 3 bullet points):
+PART 2 - Activity summary (Between 2 and 4 bullet points):
 Each bullet must be a complete sentence in past tense describing what was accomplished.
 
 CONSOLIDATION RULES:
@@ -378,7 +378,7 @@ WRITING RULES:
 EXAMPLES:
 
 BAD:
-The devlog repository on main branch
+Worked on the devlog files
 
 - The user worked on improving the summarizer plugin
 - They ran multiple git status commands to check the repository state
@@ -392,14 +392,14 @@ Working in wisprflow project
 - Looked at event handling code
 
 GOOD:
-The devlog repository on main branch
+Working on: devlog (main)
 
 - Refactored summarizer plugin prompt to enforce information density and consolidation rules in plugins/summarizer/summarizer.go
 - Discussed priority system implementation for event types with focus on distinguishing high-value development activities
 - Debugged shell integration issues related to event capture timing
 
 GOOD:
-The wisprflow repository on feature/events branch
+Working on: devlog (feature/events)
 
 - Evaluated priority field addition versus new event type creation for handling urgent notifications
 - Analyzed database schema migration requirements and backwards compatibility concerns in internal/events/schema.go
@@ -411,7 +411,8 @@ The wisprflow repository on feature/events branch
 
 - <Bullet point 1: most important activity>
 - <Bullet point 2: second most important activity>
-- <Bullet point 3: third most important activity>
+- <Bullet point 3: third most important activity IF NEEDED>
+- <Bullet point 4: fourth most important activity IF NEEDED>
 
 Generate the summary now, following ALL rules above:`
 
