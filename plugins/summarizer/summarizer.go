@@ -67,6 +67,7 @@ func (p *Plugin) DefaultConfig() interface{} {
 	return &Config{
 		Provider:             "ollama",
 		BaseURL:              "http://localhost:11434",
+		Model:                "qwen2.5:14b",
 		IntervalMinutes:      15,
 		ContextWindowMinutes: 60,
 	}
@@ -326,95 +327,147 @@ func buildPrompt(contextEvents, focusEvents []*events.Event, formatter func(*eve
 	contextBySource := groupEventsBySource(contextEvents)
 	focusBySource := groupEventsBySource(focusEvents)
 
-	prompt := `You are summarizing a development session. You will be given two sets of events:
+	prompt := `You are generating a factual development summary. This is a deterministic
+transformation of the provided events, not a creative task. You must ONLY use
+information explicitly present in the events. Never guess, infer intent, or
+invent missing details.
 
-1. CONTEXT EVENTS: A longer time period showing what happened before the focus period
-2. FOCUS EVENTS: The shorter time period that you need to summarize
+You will be given two sets of events:
 
-Events are organized by source:
-- CRITICAL: Claude Code conversations, major project work
-- HIGH: GitHub activity, significant commits
-- MEDIUM: Git operations, kubectl commands
-- LOW: Shell commands, clipboard activity, background activity
+1. CONTEXT EVENTS — older events for background reference only
+2. FOCUS EVENTS — the period that MUST be summarized
 
-CONTEXT EVENTS (for background understanding only):
+Events are grouped by source category:
+- CRITICAL: Claude Code conversations, major architectural work
+- HIGH: GitHub commits, PR activity
+- MEDIUM: git commands, kubectl operations
+- LOW: shell commands, clipboard activity, misc background
+
+CONTEXT EVENTS (read for background only; DO NOT summarize these):
 ` + formattedBySource(contextBySource, formatter) + `
 
-FOCUS EVENTS (summarize these):
+FOCUS EVENTS (summarize ONLY these):
 ` + formattedBySource(focusBySource, formatter) + `
 
-===== INSTRUCTIONS =====
+==================== SUMMARY REQUIREMENTS ====================
 
-Generate a two-part summary:
+Your output has exactly two parts:
 
-PART 1 - Context line (max 80 characters):
-State the project/repository and branch being worked on. Use format: "Working on: <repo> (<branch>)"
+----------------------------------------------------------------
+PART 1 — CONTEXT LINE (one line, max 80 chars)
 
-PART 2 - Activity summary (Between 2 and 4 bullet points):
-Each bullet must be a complete sentence in past tense describing what was accomplished.
+Format:
+"Working on: <repo> (<branch>)"
 
-CONSOLIDATION RULES:
-- If >3 similar commands/operations: "Ran multiple <type> checks" or "Made several <component> changes"
-- If repetitive debugging: "Debugged <issue>" not a list of each debug command
-- If exploring/researching: "Investigated <topic> in <files>" not each individual grep/read
+Rules:
+- Extract repo and branch ONLY from focus events
+- If multiple repos: use the one with most CRITICAL/HIGH activity
+- If no repo/branch: use "Working on: <primary-topic>"
+- Never use asterisks or markdown formatting in the context line
+----------------------------------------------------------------
 
-PRIORITIZATION (in order of importance):
-1. CRITICAL events: Major design decisions, architectural discussions, feature implementations
-2. HIGH events: Code commits, PR creation, significant git operations
-3. MEDIUM events: Only include if they provide essential context to CRITICAL/HIGH events
-4. LOW events: Omit unless they reveal a clear pattern (e.g., "Monitored Kubernetes cluster health")
+PART 2 — ACTIVITY SUMMARY (2–4 bullet points)
 
-WRITING RULES:
-✓ Use past tense: "Implemented", "Fixed", "Refactored", "Discussed"
-✓ Be specific: Include file names, component names, function names when relevant
-✓ Be direct: Start bullets with action verbs
-✓ Be dense: Pack multiple related actions into one bullet
+Each bullet MUST:
+- Be one complete sentence in past tense
+- Start with a strong action verb (not "Implemented clipboard operations" but specific action)
+- Include technical specifics: file paths, function names, tool names, error messages
+- Consolidate repetitive actions into patterns
+- Focus on what was accomplished, not what was attempted
 
-✗ Never use: "the user", "they", "I", "we", "appears", "seems", "likely", "probably"
-✗ No meta-commentary: "Focused on", "Worked on", "Continued to", "Spent time"
-✗ No vague actions: "Made changes", "Updated files", "Ran commands"
-✗ No question marks or uncertainty
+==================== SPECIFICITY GUIDELINES ====================
+
+LEVEL OF DETAIL (aim for the middle):
+
+TOO VAGUE ❌:
+- "Implemented clipboard copy operations throughout the session"
+- "Discussed and planned model testing for summarizer plugin"
+- "Ran multiple terraform plans to manage AWS infrastructure"
+
+TOO DETAILED ❌:
+- "Executed terraform plan at 11:41:03, 11:41:19, 11:41:45, and 11:41:58"
+- "Ran ./scripts/benchmark_summarizer.sh at 2025-11-20 04:28:39 and 13:47:21"
+- "Copied various output logs and configurations related to script testing"
+
+JUST RIGHT ✅:
+- "Created benchmark script for testing LLM models on summarizer prompt variants"
+- "Debugged terraform lock issue using force-unlock, then validated infrastructure plan"
+- "Evaluated qwen2.5:14b and llama3.1:8b for summarization quality and speed"
+
+==================== CONSOLIDATION RULES ====================
+
+You MUST consolidate repetitive or similar events:
+- If >3 related operations → describe the goal, not each operation
+- Repetitive debugging → "Debugged <specific-issue>" with outcome if known
+- Multiple commands for same goal → one bullet describing the objective
+- Clipboard/shell spam → OMIT unless it reveals important pattern
 
 EXAMPLES:
+- NOT: "Ran benchmark script twice"
+- YES: "Benchmarked multiple LLM models for summarizer performance"
 
-BAD:
-Worked on the devlog files
+- NOT: "Addressed Terraform lock issues by unlocking specific resource"
+- YES: "Resolved terraform state lock conflict in aws-accounts-infra"
 
-- The user worked on improving the summarizer plugin
-- They ran multiple git status commands to check the repository state
-- Made changes to some configuration files
+==================== PRIORITIZATION (STRICT ORDER) ====================
 
-BAD:
-Working in wisprflow project
+1. CRITICAL: architectural decisions, major code discussions
+2. HIGH: commits, PRs, major git operations
+3. MEDIUM: include ONLY if needed for understanding CRITICAL/HIGH
+4. LOW: include only if pattern reveals clear intent
 
-- Discussed whether to add a priority field to events or create a new event type
-- Considered database migration implications
-- Looked at event handling code
+If a lower-priority event does not add value to understanding what was accomplished, OMIT IT.
+
+==================== HARD RULES (DO NOT BREAK THESE) ====================
+
+NEVER use:
+- "the user", "I", "we", "they"
+- Uncertainty: "appears", "seems", "probably", "likely"
+- Meta phrases: "worked on", "focused on", "spent time", "continued to"
+- Vague actions: "made changes", "updated files", "ran commands"
+- Timestamps in bullets (dates are already in event format)
+- Generic accomplishments without specifics
+
+ALWAYS use:
+- Past tense action verbs
+- Specific file paths when relevant
+- Tool/command names when they identify the work
+- Technical terminology appropriate to the domain
+- Concrete outcomes when visible in events
+
+==================== GOOD OUTPUT EXAMPLES ====================
 
 GOOD:
 Working on: devlog (main)
 
-- Refactored summarizer plugin prompt to enforce information density and consolidation rules in plugins/summarizer/summarizer.go
-- Discussed priority system implementation for event types with focus on distinguishing high-value development activities
-- Debugged shell integration issues related to event capture timing
+- Created benchmark_summarizer.sh to test qwen and llama models with different prompt variants
+- Implemented automatic model unloading after tests to prevent memory exhaustion
+- Fixed timestamp query bug in SQLite event fetching using unixepoch conversion
 
 GOOD:
-Working on: devlog (feature/events)
+Working on: aws-accounts-infra (main)
 
-- Evaluated priority field addition versus new event type creation for handling urgent notifications
-- Analyzed database schema migration requirements and backwards compatibility concerns in internal/events/schema.go
-- Reviewed event processing pipeline to determine type-checking approach versus database queries
+- Resolved terraform state lock in wistia-dev workspace using force-unlock
+- Validated infrastructure plan for ECS service updates and RDS parameter changes
+- Applied terraform changes to staging environment
 
-===== OUTPUT FORMAT =====
+GOOD (mixed repos):
+Working on: devlog (main)
 
-<One line context, max 80 chars>
+- Discussed implementing priority-based event categorization in internal/events/event.go
+- Benchmarked qwen2.5:14b for production summarizer with 50-event test cases
+- Deployed configuration updates to kubernetes staging cluster
 
-- <Bullet point 1: most important activity>
-- <Bullet point 2: second most important activity>
-- <Bullet point 3: third most important activity IF NEEDED>
-- <Bullet point 4: fourth most important activity IF NEEDED>
+==================== OUTPUT FORMAT (STRICT) ====================
 
-Generate the summary now, following ALL rules above:`
+<one-line context>
+
+- <bullet 1: most significant technical work>
+- <bullet 2: second most significant work>
+- <bullet 3: additional work if meaningfully different>
+- <bullet 4: only if truly distinct from above>
+
+Generate the summary now. Follow ALL rules above with zero deviations.`
 
 	return prompt
 }
