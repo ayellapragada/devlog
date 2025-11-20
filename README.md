@@ -17,6 +17,7 @@
 [![CI](https://github.com/ayellapragada/devlog/workflows/CI/badge.svg)](https://github.com/ayellapragada/devlog/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ayellapragada/devlog)](https://goreportcard.com/report/github.com/ayellapragada/devlog)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/ayellapragada/devlog?utm_source=oss&utm_medium=github&utm_campaign=ayellapragada%2Fdevlog&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
 [Installation](#-installation) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Documentation](#-documentation)
 
