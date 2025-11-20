@@ -6,7 +6,9 @@
       "Bash(./devlog:*)",
       "Bash(./devlog help)",
       "Bash(go list:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(./scripts/benchmark_summarizer.sh:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []
