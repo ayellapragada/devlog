@@ -15,8 +15,8 @@ type IngestHandler struct{}
 
 func (h *IngestHandler) CLICommand() *cli.Command {
 	return &cli.Command{
-		Name:  "git-commit",
-		Usage: "Ingest a git commit event (used by git hooks)",
+		Name:  "git-event",
+		Usage: "Ingest a git event (used by git hooks)",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "repo", Usage: "Repository path", Required: true},
 			&cli.StringFlag{Name: "branch", Usage: "Branch name", Required: true},
