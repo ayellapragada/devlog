@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -274,6 +275,20 @@ func (d *Daemon) processQueue() error {
 			filteredCount++
 			if err := q.Remove(event.ID); err != nil {
 				d.logger.Warn("failed to remove filtered event from queue",
+					slog.String("event_id", event.ID),
+					slog.String("error", err.Error()))
+			}
+			continue
+		}
+
+		var validationErr *services.ValidationError
+		if stderrors.As(err, &validationErr) {
+			filteredCount++
+			d.logger.Warn("removing invalid event from queue",
+				slog.String("event_id", event.ID),
+				slog.String("error", err.Error()))
+			if err := q.Remove(event.ID); err != nil {
+				d.logger.Warn("failed to remove invalid event from queue",
 					slog.String("event_id", event.ID),
 					slog.String("error", err.Error()))
 			}
