@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -267,11 +268,29 @@ func (s *Server) handleCommandStats(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, CommandStatsResponse{Data: data}, http.StatusOK)
 }
 
+func parseDuration(s string) (time.Duration, error) {
+	if strings.HasSuffix(s, "d") {
+		days := strings.TrimSuffix(s, "d")
+		if days == "" {
+			return 0, fmt.Errorf("invalid duration: missing number before 'd'")
+		}
+		var d int
+		_, err := fmt.Sscanf(days, "%d", &d)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration: %w", err)
+		}
+		if d < 0 {
+			return 0, fmt.Errorf("invalid duration: negative value not allowed")
+		}
+		return time.Duration(d) * 24 * time.Hour, nil
+	}
+	return time.ParseDuration(s)
+}
+
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	if query == "" {
-		respondError(w, "query parameter 'q' is required", http.StatusBadRequest)
-		return
+		query = "*"
 	}
 
 	if utf8.RuneCountInString(query) > MaxQueryLength {
@@ -312,12 +331,41 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	results, err := s.eventService.SearchEvents(r.Context(), storage.SearchOptions{
-		Query:          query,
-		Limit:          limit,
-		IncludeSnippet: true,
-		Cursor:         cursor,
-	})
+	searchOpts := storage.SearchOptions{
+		Query:         query,
+		Limit:         limit,
+		Cursor:        cursor,
+		Modules:       r.URL.Query()["module"],
+		Types:         r.URL.Query()["type"],
+		RepoPattern:   r.URL.Query().Get("repo"),
+		BranchPattern: r.URL.Query().Get("branch"),
+	}
+
+	if sinceStr := r.URL.Query().Get("since"); sinceStr != "" {
+		duration, err := parseDuration(sinceStr)
+		if err != nil {
+			respondError(w, fmt.Sprintf("invalid since duration: %v", err), http.StatusBadRequest)
+			return
+		}
+		afterTime := time.Now().Add(-duration)
+		searchOpts.After = &afterTime
+	}
+
+	sortOrder := r.URL.Query().Get("sort")
+	if sortOrder == "" {
+		sortOrder = "relevance"
+	}
+	switch sortOrder {
+	case "relevance":
+		searchOpts.SortOrder = storage.SortByRelevance
+	case "time_desc":
+		searchOpts.SortOrder = storage.SortByTimeDesc
+	default:
+		respondError(w, fmt.Sprintf("invalid sort order: %s (must be relevance or time_desc)", sortOrder), http.StatusBadRequest)
+		return
+	}
+
+	results, err := s.eventService.SearchEvents(r.Context(), searchOpts)
 	if err != nil {
 		respondError(w, fmt.Sprintf("Search failed: %v", err), http.StatusInternalServerError)
 		return
@@ -334,7 +382,6 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			Repo:      result.Event.Repo,
 			Branch:    result.Event.Branch,
 			Payload:   result.Event.Payload,
-			Snippet:   result.Snippet,
 			Rank:      result.Rank,
 		}
 		if result.NextCursor != "" {

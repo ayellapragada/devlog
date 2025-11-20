@@ -247,8 +247,27 @@ Event processing examples:
 devlog init                          # Initialize configuration
 devlog daemon start|stop|restart     # Manage daemon
 devlog status [-v] [-n NUM] [-s SRC] # View recent events
-devlog search <query>                # Search events
 ```
+
+### Searching Your History
+
+Query your development history like a database with powerful filters:
+
+```bash
+# Simple text search
+devlog search "authentication"
+
+# Time-based filtering
+devlog search --since 2h                    # Last 2 hours
+
+# Filter by source and type
+devlog search --module git --type commit    # All commits
+
+# Combine filters for precision
+devlog search "auth bug" --repo myproject --branch main --since 7d
+```
+
+Run `devlog search --help` for the complete reference of filters, sort options, and output formats.
 
 ### Configuration
 

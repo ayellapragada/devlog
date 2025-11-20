@@ -13,21 +13,26 @@ import (
 	"devlog/internal/events"
 )
 
-type SearchMode int
+type SearchOptions struct {
+	Query         string
+	Limit         int
+	PayloadFilter *PayloadFilter
+	Cursor        string
+	After         *time.Time
+	Modules       []string
+	Types         []string
+	RepoPattern   string
+	BranchPattern string
+	SortOrder     SortOrder
+}
+
+type SortOrder string
 
 const (
-	SearchModeSimple SearchMode = iota
-	SearchModeDetailed
+	SortByRelevance SortOrder = "relevance"
+	SortByTimeDesc  SortOrder = "time_desc"
+	SortByTimeAsc   SortOrder = "time_asc"
 )
-
-type SearchOptions struct {
-	Query          string
-	Limit          int
-	Mode           SearchMode
-	PayloadFilter  *PayloadFilter
-	IncludeSnippet bool
-	Cursor         string
-}
 
 type PayloadFilter struct {
 	JSONPath string
@@ -36,13 +41,12 @@ type PayloadFilter struct {
 
 type SearchResult struct {
 	Event      *events.Event
-	Snippet    string
 	Rank       float64
 	NextCursor string
 }
 
 var (
-	ftsSpecialChars = regexp.MustCompile(`[^\w\s\-*"]`)
+	ftsSpecialChars = regexp.MustCompile(`[^\w\s*"]`)
 	multipleSpaces  = regexp.MustCompile(`\s+`)
 )
 
@@ -100,29 +104,103 @@ func (s *Storage) Search(ctx context.Context, opts SearchOptions) ([]*SearchResu
 		return nil, fmt.Errorf("decode cursor: %w", err)
 	}
 
-	sanitizedQuery := sanitizeFTSQuery(opts.Query)
-
-	var sqlQuery string
-	var args []interface{}
-
-	selectFields := "e.id, e.timestamp, e.source, e.type, e.repo, e.branch, e.payload"
-	if opts.Mode == SearchModeDetailed || opts.IncludeSnippet {
-		selectFields += ", snippet(events_fts, 3, '<mark>', '</mark>', '...', 32) as snippet, rank"
+	if opts.Query == "" {
+		opts.Query = "*"
 	}
 
-	fromClause := "FROM events e JOIN events_fts ON events_fts.rowid = e.rowid"
-	whereClause := "WHERE events_fts MATCH ?"
-	args = append(args, sanitizedQuery)
+	sanitizedQuery := sanitizeFTSQuery(opts.Query)
+	hasFTSQuery := sanitizedQuery != "" && sanitizedQuery != "*"
+
+	hasFilters := opts.After != nil ||
+		len(opts.Modules) > 0 ||
+		len(opts.Types) > 0 ||
+		opts.RepoPattern != "" ||
+		opts.BranchPattern != "" ||
+		opts.PayloadFilter != nil
+
+	if !hasFTSQuery && !hasFilters {
+		return nil, fmt.Errorf("search requires at least one filter (module, type, repo, branch, since) or a non-empty query")
+	}
+
+	var args []interface{}
+	selectFields := "e.id, e.timestamp, e.source, e.type, e.repo, e.branch, e.payload"
+	if hasFTSQuery {
+		selectFields += ", rank"
+	}
+
+	fromClause := "FROM events e"
+	var whereClauses []string
+
+	if hasFTSQuery {
+		fromClause += " JOIN events_fts ON events_fts.rowid = e.rowid"
+		whereClauses = append(whereClauses, "events_fts MATCH ?")
+		args = append(args, sanitizedQuery)
+	}
+
+	if opts.After != nil {
+		whereClauses = append(whereClauses, "e.timestamp >= ?")
+		args = append(args, opts.After.Unix())
+	}
+
+	if len(opts.Modules) > 0 {
+		placeholders := make([]string, len(opts.Modules))
+		for i, source := range opts.Modules {
+			placeholders[i] = "?"
+			args = append(args, source)
+		}
+		whereClauses = append(whereClauses, fmt.Sprintf("e.source IN (%s)", strings.Join(placeholders, ",")))
+	}
+
+	if len(opts.Types) > 0 {
+		placeholders := make([]string, len(opts.Types))
+		for i, t := range opts.Types {
+			placeholders[i] = "?"
+			args = append(args, t)
+		}
+		whereClauses = append(whereClauses, fmt.Sprintf("e.type IN (%s)", strings.Join(placeholders, ",")))
+	}
+
+	if opts.RepoPattern != "" {
+		whereClauses = append(whereClauses, "e.repo LIKE ?")
+		args = append(args, "%"+opts.RepoPattern+"%")
+	}
+
+	if opts.BranchPattern != "" {
+		whereClauses = append(whereClauses, "e.branch LIKE ?")
+		args = append(args, "%"+opts.BranchPattern+"%")
+	}
 
 	if opts.PayloadFilter != nil {
-		whereClause += " AND json_extract(e.payload, ?) = ?"
+		whereClauses = append(whereClauses, "json_extract(e.payload, ?) = ?")
 		args = append(args, opts.PayloadFilter.JSONPath, opts.PayloadFilter.Value)
 	}
 
-	orderClause := "ORDER BY rank"
+	whereClause := ""
+	if len(whereClauses) > 0 {
+		whereClause = "WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	orderClause := ""
+	if opts.SortOrder == "" {
+		opts.SortOrder = SortByTimeAsc
+	}
+	switch opts.SortOrder {
+	case SortByRelevance:
+		if hasFTSQuery {
+			orderClause = "ORDER BY rank"
+		} else {
+			orderClause = "ORDER BY e.timestamp DESC"
+		}
+	case SortByTimeDesc:
+		orderClause = "ORDER BY e.timestamp DESC"
+	case SortByTimeAsc:
+		orderClause = "ORDER BY e.timestamp ASC"
+	}
+
 	limitClause := fmt.Sprintf("LIMIT %d OFFSET %d", opts.Limit+1, offset)
 
-	sqlQuery = fmt.Sprintf("SELECT %s %s %s %s %s", selectFields, fromClause, whereClause, orderClause, limitClause)
+	sqlQuery := fmt.Sprintf("SELECT %s %s %s %s %s",
+		selectFields, fromClause, whereClause, orderClause, limitClause)
 
 	ctx, cancel := context.WithTimeout(ctx, DefaultQueryTimeoutLong)
 	defer cancel()
@@ -135,7 +213,7 @@ func (s *Storage) Search(ctx context.Context, opts SearchOptions) ([]*SearchResu
 
 	var results []*SearchResult
 	for rows.Next() {
-		result, err := s.scanSearchResultWithMode(rows, opts.Mode, opts.IncludeSnippet)
+		result, err := s.scanSearchResultWithFTS(rows, hasFTSQuery)
 		if err != nil {
 			return nil, fmt.Errorf("scan search result: %w", err)
 		}
@@ -189,18 +267,18 @@ func (s *Storage) QueryByPayloadField(ctx context.Context, jsonPath string, valu
 	return result, rows.Err()
 }
 
-func (s *Storage) scanSearchResultWithMode(scanner interface {
+func (s *Storage) scanSearchResultWithFTS(scanner interface {
 	Scan(dest ...interface{}) error
-}, mode SearchMode, includeSnippet bool) (*SearchResult, error) {
+}, hasFTSQuery bool) (*SearchResult, error) {
 	var event events.Event
 	var payloadJSON string
 	var repo, branch sql.NullString
 	var timestampUnix int64
-	var snippet string
 	var rank float64
 
-	if mode == SearchModeDetailed || includeSnippet {
-		err := scanner.Scan(
+	var err error
+	if hasFTSQuery {
+		err = scanner.Scan(
 			&event.ID,
 			&timestampUnix,
 			&event.Source,
@@ -208,14 +286,10 @@ func (s *Storage) scanSearchResultWithMode(scanner interface {
 			&repo,
 			&branch,
 			&payloadJSON,
-			&snippet,
 			&rank,
 		)
-		if err != nil {
-			return nil, err
-		}
 	} else {
-		err := scanner.Scan(
+		err = scanner.Scan(
 			&event.ID,
 			&timestampUnix,
 			&event.Source,
@@ -224,9 +298,9 @@ func (s *Storage) scanSearchResultWithMode(scanner interface {
 			&branch,
 			&payloadJSON,
 		)
-		if err != nil {
-			return nil, err
-		}
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	event.Version = 1
@@ -246,8 +320,7 @@ func (s *Storage) scanSearchResultWithMode(scanner interface {
 	}
 
 	return &SearchResult{
-		Event:   restoredEvent,
-		Snippet: snippet,
-		Rank:    rank,
+		Event: restoredEvent,
+		Rank:  rank,
 	}, nil
 }

@@ -85,7 +85,6 @@ type SearchResultResponse struct {
 	Repo      string                 `json:"repo,omitempty"`
 	Branch    string                 `json:"branch,omitempty"`
 	Payload   map[string]interface{} `json:"payload"`
-	Snippet   string                 `json:"snippet,omitempty"`
 	Rank      float64                `json:"rank"`
 }
 

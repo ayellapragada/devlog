@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"unicode/utf8"
 
+	"devlog/internal/events"
 	"devlog/internal/storage"
 )
 
@@ -13,7 +15,6 @@ type OutputFormat string
 const (
 	FormatTable OutputFormat = "table"
 	FormatJSON  OutputFormat = "json"
-	FormatCSV   OutputFormat = "csv"
 )
 
 type SearchPresenter struct {
@@ -34,8 +35,6 @@ func (p *SearchPresenter) Present(results []*storage.SearchResult, query string)
 	switch p.format {
 	case FormatJSON:
 		return p.presentJSON(results)
-	case FormatCSV:
-		return p.presentCSV(results)
 	default:
 		return p.presentTable(results, query)
 	}
@@ -57,8 +56,11 @@ func (p *SearchPresenter) presentTable(results []*storage.SearchResult, query st
 			result.Event.Type,
 		)
 
-		if result.Snippet != "" {
-			fmt.Fprintf(p.writer, "  Snippet: %s\n", result.Snippet)
+		if !p.verbose {
+			content := p.extractContent(result.Event)
+			if content != "" {
+				fmt.Fprintf(p.writer, "  %s\n", content)
+			}
 		}
 
 		if p.verbose {
@@ -70,6 +72,79 @@ func (p *SearchPresenter) presentTable(results []*storage.SearchResult, query st
 	}
 
 	return nil
+}
+
+func (p *SearchPresenter) extractContent(event *events.Event) string {
+	payload := event.Payload
+
+	switch event.Type {
+	case "commit":
+		if msg, ok := payload["message"].(string); ok {
+			return truncate(msg, 100)
+		}
+	case "command":
+		if cmd, ok := payload["command"].(string); ok {
+			return truncate(cmd, 100)
+		}
+	case "transcription":
+		if text, ok := payload["text"].(string); ok {
+			return truncate(text, 100)
+		}
+	case "conversation":
+		if summary, ok := payload["summary"].(string); ok {
+			return truncate(summary, 100)
+		}
+	case "copy":
+		if content, ok := payload["content"].(string); ok {
+			return truncate(content, 100)
+		}
+	case "push", "pull", "fetch":
+		if ref, ok := payload["ref"].(string); ok {
+			return "ref: " + ref
+		}
+	case "checkout":
+		if branch, ok := payload["branch"].(string); ok {
+			return "→ " + branch
+		}
+	case "merge":
+		if source, ok := payload["source"].(string); ok {
+			if target, ok := payload["target"].(string); ok {
+				return source + " → " + target
+			}
+			return source
+		}
+	case "note":
+		if note, ok := payload["note"].(string); ok {
+			return truncate(note, 100)
+		}
+	case "file_edit":
+		if file, ok := payload["file"].(string); ok {
+			return file
+		}
+	}
+
+	return ""
+}
+
+func truncate(s string, maxLen int) string {
+	if s == "" || maxLen <= 0 {
+		return ""
+	}
+	if maxLen <= 3 {
+		return "..."
+	}
+
+	runeCount := utf8.RuneCountInString(s)
+	if runeCount <= maxLen {
+		return s
+	}
+
+	truncated := s
+	runes := []rune(s)
+	if len(runes) > maxLen-3 {
+		truncated = string(runes[:maxLen-3])
+	}
+	return truncated + "..."
 }
 
 func (p *SearchPresenter) presentJSON(results []*storage.SearchResult) error {
@@ -86,27 +161,4 @@ func (p *SearchPresenter) presentJSON(results []*storage.SearchResult) error {
 	encoder := json.NewEncoder(p.writer)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(data)
-}
-
-func (p *SearchPresenter) presentCSV(results []*storage.SearchResult) error {
-	fmt.Fprintln(p.writer, "timestamp,id,source,type,repo,branch,snippet")
-
-	for _, result := range results {
-		snippet := ""
-		if result.Snippet != "" {
-			snippet = fmt.Sprintf("%q", result.Snippet)
-		}
-
-		fmt.Fprintf(p.writer, "%s,%s,%s,%s,%s,%s,%s\n",
-			result.Event.Timestamp,
-			result.Event.ID,
-			result.Event.Source,
-			result.Event.Type,
-			result.Event.Repo,
-			result.Event.Branch,
-			snippet,
-		)
-	}
-
-	return nil
 }

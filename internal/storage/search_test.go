@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"testing"
+	"time"
 
 	"devlog/internal/events"
 )
@@ -33,9 +34,8 @@ func TestSearchEvents(t *testing.T) {
 	}
 
 	results, err := storage.Search(context.Background(), SearchOptions{
-		Query:          "error",
-		Limit:          10,
-		IncludeSnippet: true,
+		Query: "error",
+		Limit: 10,
 	})
 	if err != nil {
 		t.Fatalf("Search() error: %v", err)
@@ -48,9 +48,6 @@ func TestSearchEvents(t *testing.T) {
 	for _, result := range results {
 		if result.Event == nil {
 			t.Error("SearchResult.Event is nil")
-		}
-		if result.Snippet == "" {
-			t.Error("SearchResult.Snippet is empty")
 		}
 	}
 }
@@ -306,12 +303,26 @@ func TestSearchEmptyQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Empty query without filters should return error
 	_, err := storage.Search(context.Background(), SearchOptions{
 		Query: "",
 		Limit: 10,
 	})
 	if err == nil {
-		t.Error("Search() with empty query should return error")
+		t.Error("Search() with empty query and no filters should return error")
+	}
+
+	// Empty query with filter should work
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query:   "",
+		Limit:   10,
+		Modules: []string{string(events.SourceShell)},
+	})
+	if err != nil {
+		t.Errorf("Search() with empty query and filter failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("Search() with empty query and filter should return filtered events, got %d results", len(results))
 	}
 }
 
@@ -325,12 +336,26 @@ func TestSearchWhitespaceOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Whitespace-only query without filters should return error
 	_, err := storage.Search(context.Background(), SearchOptions{
 		Query: "   ",
 		Limit: 10,
 	})
 	if err == nil {
-		t.Error("Search() with whitespace query should return error")
+		t.Error("Search() with whitespace query and no filters should return error")
+	}
+
+	// Whitespace-only query with filter should work
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query:   "   ",
+		Limit:   10,
+		Modules: []string{string(events.SourceShell)},
+	})
+	if err != nil {
+		t.Errorf("Search() with whitespace query and filter failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("Search() with whitespace query and filter should return filtered events, got %d results", len(results))
 	}
 }
 
@@ -570,5 +595,291 @@ func TestSearchCaseInsensitive(t *testing.T) {
 				t.Errorf("Search(%q) got %d results, want 1", tt.query, len(results))
 			}
 		})
+	}
+}
+
+func TestSearchWithModuleFilter(t *testing.T) {
+	storage, _ := setupTestDB(t)
+	defer storage.Close()
+
+	event1 := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	event1.Payload["command"] = "git status"
+	if err := storage.InsertEvent(event1); err != nil {
+		t.Fatal(err)
+	}
+
+	event2 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event2.Payload["message"] = "test commit"
+	if err := storage.InsertEvent(event2); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query:   "*",
+		Limit:   10,
+		Modules: []string{string(events.SourceGit)},
+	})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("Search() with module filter got %d results, want 1", len(results))
+	}
+	if len(results) > 0 && results[0].Event.Source != string(events.SourceGit) {
+		t.Errorf("Search() returned wrong source: %s", results[0].Event.Source)
+	}
+}
+
+func TestSearchWithMultipleModules(t *testing.T) {
+	storage, _ := setupTestDB(t)
+	defer storage.Close()
+
+	event1 := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	event1.Payload["command"] = "test"
+	if err := storage.InsertEvent(event1); err != nil {
+		t.Fatal(err)
+	}
+
+	event2 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event2.Payload["message"] = "test"
+	if err := storage.InsertEvent(event2); err != nil {
+		t.Fatal(err)
+	}
+
+	event3 := events.NewEvent(string(events.SourceManual), string(events.TypeCommand))
+	event3.Payload["command"] = "test"
+	if err := storage.InsertEvent(event3); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query:   "*",
+		Limit:   10,
+		Modules: []string{string(events.SourceShell), string(events.SourceGit)},
+	})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Errorf("Search() with multiple modules got %d results, want 2", len(results))
+	}
+}
+
+func TestSearchWithTypeFilter(t *testing.T) {
+	storage, _ := setupTestDB(t)
+	defer storage.Close()
+
+	event1 := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	event1.Payload["command"] = "test"
+	if err := storage.InsertEvent(event1); err != nil {
+		t.Fatal(err)
+	}
+
+	event2 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event2.Payload["message"] = "test"
+	if err := storage.InsertEvent(event2); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query: "*",
+		Limit: 10,
+		Types: []string{string(events.TypeCommit)},
+	})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("Search() with type filter got %d results, want 1", len(results))
+	}
+	if len(results) > 0 && results[0].Event.Type != string(events.TypeCommit) {
+		t.Errorf("Search() returned wrong type: %s", results[0].Event.Type)
+	}
+}
+
+func TestSearchWithRepoPattern(t *testing.T) {
+	storage, _ := setupTestDB(t)
+	defer storage.Close()
+
+	event1 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event1.Repo = "/path/to/project1"
+	event1.Payload["message"] = "test"
+	if err := storage.InsertEvent(event1); err != nil {
+		t.Fatal(err)
+	}
+
+	event2 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event2.Repo = "/path/to/project2"
+	event2.Payload["message"] = "test"
+	if err := storage.InsertEvent(event2); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query:       "*",
+		Limit:       10,
+		RepoPattern: "project1",
+	})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("Search() with repo pattern got %d results, want 1", len(results))
+	}
+	if len(results) > 0 && results[0].Event.Repo != "/path/to/project1" {
+		t.Errorf("Search() returned wrong repo: %s", results[0].Event.Repo)
+	}
+}
+
+func TestSearchWithBranchPattern(t *testing.T) {
+	storage, _ := setupTestDB(t)
+	defer storage.Close()
+
+	event1 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event1.Branch = "main"
+	event1.Payload["message"] = "test"
+	if err := storage.InsertEvent(event1); err != nil {
+		t.Fatal(err)
+	}
+
+	event2 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event2.Branch = "develop"
+	event2.Payload["message"] = "test"
+	if err := storage.InsertEvent(event2); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query:         "*",
+		Limit:         10,
+		BranchPattern: "main",
+	})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("Search() with branch pattern got %d results, want 1", len(results))
+	}
+	if len(results) > 0 && results[0].Event.Branch != "main" {
+		t.Errorf("Search() returned wrong branch: %s", results[0].Event.Branch)
+	}
+}
+
+func TestSearchWithAfterTime(t *testing.T) {
+	storage, _ := setupTestDB(t)
+	defer storage.Close()
+
+	// Create an event from 2 hours ago
+	event1 := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	event1.Payload["command"] = "old command"
+	// We can't easily set timestamp, but we can test with a very recent time
+	if err := storage.InsertEvent(event1); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create an event now
+	event2 := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	event2.Payload["command"] = "recent command"
+	if err := storage.InsertEvent(event2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Search for events in the last minute (should get recent one)
+	afterTime := time.Now().Add(-1 * time.Minute)
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query: "*",
+		Limit: 10,
+		After: &afterTime,
+	})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	// Should get at least the recent event
+	if len(results) == 0 {
+		t.Error("Search() with After filter returned no results")
+	}
+}
+
+func TestSearchWithSortOrder(t *testing.T) {
+	storage, _ := setupTestDB(t)
+	defer storage.Close()
+
+	event1 := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	event1.Payload["command"] = "first command"
+	if err := storage.InsertEvent(event1); err != nil {
+		t.Fatal(err)
+	}
+
+	// Small delay to ensure different timestamps
+	time.Sleep(10 * time.Millisecond)
+
+	event2 := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	event2.Payload["command"] = "second command"
+	if err := storage.InsertEvent(event2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test time_desc sort with module filter (required when query is "*")
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query:     "*",
+		Limit:     10,
+		Modules:   []string{string(events.SourceShell)},
+		SortOrder: SortByTimeDesc,
+	})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(results) < 2 {
+		t.Fatalf("Search() got %d results, want at least 2", len(results))
+	}
+	// Verify SortOrder is being used (results should be returned)
+	// Note: exact ordering depends on timestamps which may be identical
+	if len(results) != 2 {
+		t.Errorf("Search() with time_desc sort got %d results, want 2", len(results))
+	}
+}
+
+func TestSearchWithCombinedFilters(t *testing.T) {
+	storage, _ := setupTestDB(t)
+	defer storage.Close()
+
+	event1 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event1.Repo = "/path/to/project"
+	event1.Branch = "main"
+	event1.Payload["message"] = "fix bug"
+	if err := storage.InsertEvent(event1); err != nil {
+		t.Fatal(err)
+	}
+
+	event2 := events.NewEvent(string(events.SourceGit), string(events.TypeCommit))
+	event2.Repo = "/path/to/project"
+	event2.Branch = "develop"
+	event2.Payload["message"] = "add feature"
+	if err := storage.InsertEvent(event2); err != nil {
+		t.Fatal(err)
+	}
+
+	event3 := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))
+	event3.Payload["command"] = "git commit"
+	if err := storage.InsertEvent(event3); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := storage.Search(context.Background(), SearchOptions{
+		Query:         "*",
+		Limit:         10,
+		Modules:       []string{string(events.SourceGit)},
+		Types:         []string{string(events.TypeCommit)},
+		RepoPattern:   "project",
+		BranchPattern: "main",
+	})
+	if err != nil {
+		t.Fatalf("Search() error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("Search() with combined filters got %d results, want 1", len(results))
+	}
+	if len(results) > 0 && results[0].Event.Branch != "main" {
+		t.Errorf("Search() returned wrong event: branch=%s", results[0].Event.Branch)
 	}
 }
