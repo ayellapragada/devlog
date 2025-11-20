@@ -1,27 +1,23 @@
 # Devlog Tools
 
-## benchmark_summarizer.sh
+Utility scripts for testing and analyzing the devlog summarizer.
 
-Test different LLM models and prompts for the summarizer.
+## Available Tools
 
-**Usage:**
+### benchmark_summarizer.sh
+Test different LLM models and prompt variants. Run `--help` for full documentation.
+
+**Quick start:**
 ```bash
-# Quick test
-./tools/benchmark_summarizer.sh --models qwen2.5:7b qwen2.5:14b --counts 25
-
-# Full docs
-./tools/benchmark_summarizer.sh --help
-# Or just read the script header
+./tools/benchmark_summarizer.sh --models qwen2.5:14b --counts 50
 ```
 
-**Results:**
-- Creates `benchmark_results/benchmark_TIMESTAMP.md`
-- Contains all summaries for manual review
-- Just open in your editor and read the actual outputs
+### historical_summarizer.sh
+Generate summaries for historical time periods. Run `--help` for full documentation.
 
-**Workflow:**
-1. Run benchmark
-2. Open results markdown file
-3. Read summaries to judge quality
-4. Pick best model/prompt
-5. Update config: `./devlog config plugins.summarizer.model "qwen2.5:14b"`
+**Quick start:**
+```bash
+./tools/historical_summarizer.sh --hours 24 --interval 30
+```
+
+Both scripts include comprehensive help text with examples and options.
