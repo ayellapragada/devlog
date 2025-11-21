@@ -724,6 +724,55 @@ func (p *Plugin) buildDebugSection(focusStart, focusEnd time.Time, contextEvents
 	return debug.String()
 }
 
+func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd time.Time) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			header := fmt.Sprintf("# Development Summary - %s\n\n", focusStart.Format("January 2, 2006"))
+			section := p.buildInactivePeriodSection(focusStart, focusEnd)
+			return os.WriteFile(path, []byte(header+section), 0644)
+		}
+		return fmt.Errorf("read summary file: %w", err)
+	}
+
+	inactivePeriodRegex := regexp.MustCompile(`(?m)^## (\d{2}:\d{2}) - (\d{2}:\d{2})\n\nNo development activity recorded during this period\.\n\n`)
+	matches := inactivePeriodRegex.FindAllStringSubmatchIndex(string(content), -1)
+
+	if len(matches) > 0 {
+		lastMatch := matches[len(matches)-1]
+		lastEndTime := string(content[lastMatch[4]:lastMatch[5]])
+
+		expectedStartTime := focusStart.Format("15:04")
+		if lastEndTime == expectedStartTime {
+			updatedSection := fmt.Sprintf("## %s - %s\n\nNo development activity recorded during this period.\n\n",
+				string(content[lastMatch[2]:lastMatch[3]]),
+				focusEnd.Format("15:04"))
+
+			newContent := string(content[:lastMatch[0]]) + updatedSection + string(content[lastMatch[1]:])
+			return os.WriteFile(path, []byte(newContent), 0644)
+		}
+	}
+
+	section := p.buildInactivePeriodSection(focusStart, focusEnd)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("open summary file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(section); err != nil {
+		return fmt.Errorf("write inactive period: %w", err)
+	}
+
+	return nil
+}
+
+func (p *Plugin) buildInactivePeriodSection(focusStart, focusEnd time.Time) string {
+	return fmt.Sprintf("## %s - %s\n\nNo development activity recorded during this period.\n\n",
+		focusStart.Format("15:04"),
+		focusEnd.Format("15:04"))
+}
+
 func (p *Plugin) saveSummary(summary string, focusStart, focusEnd time.Time, contextEvents, focusEvents []*events.Event) error {
 	dataDir, err := config.DataDir()
 	if err != nil {
@@ -738,21 +787,27 @@ func (p *Plugin) saveSummary(summary string, focusStart, focusEnd time.Time, con
 	filename := fmt.Sprintf("summary_%s.md", focusStart.Format("2006-01-02"))
 	path := filepath.Join(summariesDir, filename)
 
-	section := p.buildMarkdownSection(summary, focusStart, focusEnd, contextEvents, focusEvents)
+	if len(focusEvents) == 0 {
+		if err := p.updateOrCreateInactivePeriod(path, focusStart, focusEnd); err != nil {
+			return err
+		}
+	} else {
+		section := p.buildMarkdownSection(summary, focusStart, focusEnd, contextEvents, focusEvents)
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		header := fmt.Sprintf("# Development Summary - %s\n\n", focusStart.Format("January 2, 2006"))
-		section = header + section
-	}
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			header := fmt.Sprintf("# Development Summary - %s\n\n", focusStart.Format("January 2, 2006"))
+			section = header + section
+		}
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("open summary file: %w", err)
-	}
-	defer f.Close()
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("open summary file: %w", err)
+		}
+		defer f.Close()
 
-	if _, err := f.WriteString(section); err != nil {
-		return fmt.Errorf("write summary section: %w", err)
+		if _, err := f.WriteString(section); err != nil {
+			return fmt.Errorf("write summary section: %w", err)
+		}
 	}
 
 	p.logger.Info("summary appended",

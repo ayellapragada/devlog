@@ -7,8 +7,9 @@
       "Bash(./devlog help)",
       "Bash(go list:*)",
       "Bash(go test:*)",
+      "Bash(chmod:*)",
       "Bash(./scripts/benchmark_summarizer.sh:*)",
-      "Bash(chmod:*)"
+      "Bash(./bin/devlog summarizer backfill:*)"
     ],
     "deny": [],
     "ask": []
