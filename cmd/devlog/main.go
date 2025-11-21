@@ -14,6 +14,10 @@ import (
 	_ "devlog/modules/shell"
 	_ "devlog/modules/tmux"
 	_ "devlog/modules/wisprflow"
+
+	_ "devlog/plugins/llm"
+	_ "devlog/plugins/query"
+	_ "devlog/plugins/summarizer"
 )
 
 func main() {
@@ -27,6 +31,7 @@ func main() {
 			commands.StatusCommand(),
 			commands.FlushCommand(),
 			commands.SearchCommand(),
+			commands.QueryCommand(),
 			commands.ModuleCommand(),
 			commands.PluginCommand(),
 			commands.IngestCommand(),

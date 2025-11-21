@@ -104,7 +104,7 @@ func (d *Daemon) resolvePluginDependencies(enabledPlugins []plugins.Plugin) ([]p
 func (d *Daemon) startPlugin(parentCtx context.Context, plugin plugins.Plugin, pluginName string) {
 	pluginCfgMap, ok := d.config.GetPluginConfig(pluginName)
 	if !ok || pluginCfgMap == nil {
-		d.logger.Warn("plugin config not found, using empty config",
+		d.logger.Debug("plugin has no config, using defaults",
 			slog.String("plugin", pluginName))
 		pluginCfgMap = make(map[string]interface{})
 	}

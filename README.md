@@ -251,23 +251,90 @@ devlog status [-v] [-n NUM] [-s SRC] # View recent events
 
 ### Searching Your History
 
-Query your development history like a database with powerful filters:
+DevLog provides two powerful ways to search your development history:
+
+#### 1. **Full-Text Search** - Fast, structured queries with filters
+
+Search your development history using SQLite FTS5 full-text search with powerful filtering:
 
 ```bash
-# Simple text search
+# Simple text search across all events
 devlog search "authentication"
 
 # Time-based filtering
 devlog search --since 2h                    # Last 2 hours
+devlog search --since 7d                    # Last 7 days
+devlog search --since 1h30m                 # Last 1.5 hours
 
-# Filter by source and type
-devlog search --module git --type commit    # All commits
+# Filter by module and event type
+devlog search --module git                  # All git events
+devlog search --module git --type commit    # Only git commits
+devlog search --type error                  # All error events
+
+# Filter by repository and branch
+devlog search --repo myproject              # Events from specific repo
+devlog search --branch main                 # Events from main branch
+devlog search --repo myproject --branch feature/auth
+
+# Control output
+devlog search -n 50                         # Show 50 results (default: 20)
+devlog search --sort relevance              # Sort by relevance (default: time_asc)
+devlog search --sort time_desc              # Most recent first
+devlog search --format json                 # JSON output
 
 # Combine filters for precision
-devlog search "auth bug" --repo myproject --branch main --since 7d
+devlog search "auth bug" --repo myproject --branch main --since 7d --module git
+devlog search "npm install" --module shell --since 1d --format simple
 ```
 
-Run `devlog search --help` for the complete reference of filters, sort options, and output formats.
+**Search Features:**
+- **Full-text search** powered by SQLite FTS5
+- **Multiple filters**: time, module, type, repository, branch
+- **Flexible time ranges**: supports hours (`h`), minutes (`m`), and days (`d`)
+- **Sort options**: by time (ascending/descending) or relevance
+- **Output formats**: table (default), JSON, or simple text
+- **Pattern matching**: use `*` as wildcard in repo/branch filters
+
+Run `devlog search --help` for the complete reference.
+
+#### 2. **Natural Language Queries** - Ask questions in plain English (LLM-Powered)
+
+Ask questions about your development history naturally and get intelligent, summarized answers.
+There is a limit on the number of events that can be summarized.
+Realistically, if you ask for a summary of a full week, in it's current state that will break.
+
+If you limit it to a certain time period, things will go more smoothly.
+
+```bash
+# Install the query plugin first
+devlog plugin install llm      # Base LLM service
+devlog plugin install query    # Natural language interface
+
+# Ask questions in natural language
+devlog query "What was I working on last?"
+devlog query "Show me all git commits from today"
+devlog query "What files did I change between 2pm and 4pm?"
+devlog query "What errors did I encounter yesterday?"
+```
+
+**Query Features:**
+- **LLM-powered understanding**: interprets your natural language question
+- **Intelligent search planning**: converts questions into structured searches
+- **Smart summarization**: synthesizes results into human-readable answers
+- **Context-aware**: understands time references ("today", "yesterday", "last week")
+- **Works with existing events**: searches your local SQLite database
+
+**Comparison:**
+
+| Feature          | `search`  | `query`           |
+|------------------|-----------|-------------------|
+| **Speed**        | Instant   | ~2-5 seconds      |
+| **Input**        | Flags     | Natural language  |
+| **Output**       | Events    | Summary narrative |
+| **LLM Required** | No        | Yes               |
+| **Best for**     | Filtering | Exploration       |
+
+Use `search` when you know exactly what you're looking for. Use `query` when you want to explore or need a summary.
 
 ### Configuration
 
