@@ -12,6 +12,7 @@ import (
 	_ "devlog/modules/claude"
 	_ "devlog/modules/clipboard"
 	_ "devlog/modules/git"
+	_ "devlog/modules/kubectl"
 	_ "devlog/modules/shell"
 	_ "devlog/modules/wisprflow"
 )

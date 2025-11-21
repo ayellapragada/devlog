@@ -15,12 +15,12 @@ func init() {
 
 func (f *ClipboardFormatter) Format(event *events.Event) string {
 	text := ""
-	if t, ok := event.Payload["text"].(string); ok {
-		text = formatting.TruncateToFirstLine(t, 80)
+	if t, ok := event.Payload["content"].(string); ok {
+		text = formatting.TruncateToFirstLine(t, 60)
 	}
 
 	if text != "" {
-		return text
+		return fmt.Sprintf("content: %s", text)
 	}
-	return fmt.Sprintf("clipboard/%s", event.Type)
+	return "clipboard event"
 }

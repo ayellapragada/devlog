@@ -109,7 +109,8 @@ func Status(verbose bool, limit int, source string) error {
 		fmt.Printf("Recent events (showing last %d):\n\n", len(recentEvents))
 	}
 
-	for _, event := range recentEvents {
+	for i := len(recentEvents) - 1; i >= 0; i-- {
+		event := recentEvents[i]
 		if verbose {
 			formatting.FormatEventVerbose(event)
 		} else {
