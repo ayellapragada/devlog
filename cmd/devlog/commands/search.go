@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"devlog/internal/config"
-	"devlog/internal/presentation"
+	"devlog/internal/output"
 	"devlog/internal/services"
 	"devlog/internal/storage"
 
@@ -24,11 +24,6 @@ func SearchCommand() *cli.Command {
 		Description: "Search your development history. Note: options must come before the query.\n\n   Examples:\n      devlog search --since 2h \"error\"\n      devlog search --module git --type commit \"fix\"\n      devlog search --repo myproject \"auth\"",
 		ArgsUsage:   "[query]",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "verbose",
-				Aliases: []string{"v"},
-				Usage:   "Show detailed event information",
-			},
 			&cli.IntFlag{
 				Name:    "number",
 				Aliases: []string{"n"},
@@ -66,7 +61,7 @@ func SearchCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:    "format",
 				Value:   "table",
-				Usage:   "Output format: table, json",
+				Usage:   "Output format: table, json, simple",
 				Aliases: []string{"f"},
 			},
 		},
@@ -157,16 +152,18 @@ func executeSearch(c *cli.Context, query string) error {
 		return err
 	}
 
-	var format presentation.OutputFormat
+	var format output.OutputFormat
 	switch c.String("format") {
 	case "table":
-		format = presentation.FormatTable
+		format = output.FormatTable
 	case "json":
-		format = presentation.FormatJSON
+		format = output.FormatJSON
+	case "simple":
+		format = output.FormatSimple
 	default:
-		return fmt.Errorf("invalid format: %s (must be table or json)", c.String("format"))
+		return fmt.Errorf("invalid format: %s (must be table, json, or simple)", c.String("format"))
 	}
 
-	presenter := presentation.NewSearchPresenter(os.Stdout, format, c.Bool("verbose"))
-	return presenter.Present(results, query)
+	presenter := output.NewSearchPresenter(os.Stdout, format)
+	return presenter.Present(ctx, results, query)
 }
