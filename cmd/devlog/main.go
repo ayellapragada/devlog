@@ -29,7 +29,6 @@ func main() {
 			commands.ConfigCommand(),
 			commands.DaemonCommand(),
 			commands.StatusCommand(),
-			commands.FlushCommand(),
 			commands.SearchCommand(),
 			commands.QueryCommand(),
 			commands.ModuleCommand(),
