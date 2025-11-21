@@ -263,7 +263,7 @@ func (p *Plugin) generateSummary(ctx context.Context) error {
 
 	if len(focusEvents) == 0 {
 		p.logger.Debug("no events in focus window, generating placeholder")
-		if err := p.saveSummary("", focusStart, focusEnd, focusEvents); err != nil {
+		if err := p.saveSummary("", focusStart, focusEnd, contextEvents, focusEvents); err != nil {
 			return fmt.Errorf("save summary: %w", err)
 		}
 		return nil
@@ -285,7 +285,7 @@ func (p *Plugin) generateSummary(ctx context.Context) error {
 		return fmt.Errorf("empty summary from LLM")
 	}
 
-	if err := p.saveSummary(summary, focusStart, focusEnd, focusEvents); err != nil {
+	if err := p.saveSummary(summary, focusStart, focusEnd, contextEvents, focusEvents); err != nil {
 		return fmt.Errorf("save summary: %w", err)
 	}
 
@@ -565,7 +565,7 @@ func FormatEvent(evt *events.Event) string {
 	return line
 }
 
-func (p *Plugin) buildMarkdownSection(summary string, focusStart, focusEnd time.Time, focusEvents []*events.Event) string {
+func (p *Plugin) buildMarkdownSection(summary string, focusStart, focusEnd time.Time, contextEvents, focusEvents []*events.Event) string {
 	var section strings.Builder
 
 	section.WriteString(fmt.Sprintf("## %s - %s\n\n",
@@ -573,16 +573,134 @@ func (p *Plugin) buildMarkdownSection(summary string, focusStart, focusEnd time.
 		focusEnd.Format("15:04")))
 
 	if len(focusEvents) == 0 {
-		section.WriteString("_No development activity recorded during this period._\n\n")
+		section.WriteString("No development activity recorded during this period.\n\n")
 	} else {
 		section.WriteString(summary)
 		section.WriteString("\n\n")
 	}
 
+	section.WriteString(p.buildDebugSection(focusStart, focusEnd, contextEvents, focusEvents))
+
 	return section.String()
 }
 
-func (p *Plugin) saveSummary(summary string, focusStart, focusEnd time.Time, focusEvents []*events.Event) error {
+func extractEventContent(evt *events.Event) string {
+	if summary, ok := evt.Payload["summary"].(string); ok && summary != "" {
+		return summary
+	}
+	if msg, ok := evt.Payload["message"].(string); ok && msg != "" {
+		return msg
+	}
+	if cmd, ok := evt.Payload["command"].(string); ok && cmd != "" {
+		return cmd
+	}
+	if content, ok := evt.Payload["content"].(string); ok && content != "" {
+		return content
+	}
+	if text, ok := evt.Payload["text"].(string); ok && text != "" {
+		return text
+	}
+	return ""
+}
+
+func (p *Plugin) buildDebugSection(focusStart, focusEnd time.Time, contextEvents, focusEvents []*events.Event) string {
+	var debug strings.Builder
+
+	contextStart := focusEnd.Add(-p.contextWindow)
+
+	debug.WriteString("<details>\n<summary>Debug Info</summary>\n\n")
+	debug.WriteString("```\n")
+	debug.WriteString("Time Windows:\n")
+	debug.WriteString(fmt.Sprintf("  Context: %s to %s (%s)\n",
+		contextStart.Format("15:04:05"),
+		focusEnd.Format("15:04:05"),
+		p.contextWindow))
+	debug.WriteString(fmt.Sprintf("  Focus:   %s to %s (%s)\n",
+		focusStart.Format("15:04:05"),
+		focusEnd.Format("15:04:05"),
+		p.interval))
+	debug.WriteString("\nEvent Counts:\n")
+	debug.WriteString(fmt.Sprintf("  Context: %d events\n", len(contextEvents)))
+	debug.WriteString(fmt.Sprintf("  Focus:   %d events\n", len(focusEvents)))
+	debug.WriteString("```\n\n")
+
+	contextBySource := groupEventsBySource(contextEvents)
+	focusBySource := groupEventsBySource(focusEvents)
+
+	debug.WriteString("### Context Events (background only)\n\n")
+	if len(contextEvents) == 0 {
+		debug.WriteString("_No context events_\n\n")
+	} else {
+		debug.WriteString("```\n")
+		for source, events := range contextBySource {
+			debug.WriteString(fmt.Sprintf("%s (%d events):\n", source, len(events)))
+			for _, evt := range events {
+				ts, _ := time.Parse(time.RFC3339, evt.Timestamp)
+				debug.WriteString(fmt.Sprintf("  %s [%s] %s/%s",
+					ts.Format("15:04:05"),
+					evt.ID[:8],
+					evt.Source,
+					evt.Type))
+				if evt.Repo != "" {
+					debug.WriteString(fmt.Sprintf(" (%s", evt.Repo))
+					if evt.Branch != "" {
+						debug.WriteString(fmt.Sprintf(":%s", evt.Branch))
+					}
+					debug.WriteString(")")
+				}
+				if content := extractEventContent(evt); content != "" {
+					if len(content) > 80 {
+						content = content[:80] + "..."
+					}
+					debug.WriteString(fmt.Sprintf(": %s", content))
+				}
+				debug.WriteString("\n")
+			}
+			debug.WriteString("\n")
+		}
+		debug.WriteString("```\n\n")
+	}
+
+	debug.WriteString("### Focus Events (summarized period)\n\n")
+	if len(focusEvents) == 0 {
+		debug.WriteString("_No focus events_\n\n")
+	} else {
+		debug.WriteString("```\n")
+		for source, events := range focusBySource {
+			debug.WriteString(fmt.Sprintf("%s (%d events):\n", source, len(events)))
+			for _, evt := range events {
+				ts, _ := time.Parse(time.RFC3339, evt.Timestamp)
+				debug.WriteString(fmt.Sprintf("  %s [%s] %s/%s",
+					ts.Format("15:04:05"),
+					evt.ID[:8],
+					evt.Source,
+					evt.Type))
+				if evt.Repo != "" {
+					debug.WriteString(fmt.Sprintf(" (%s", evt.Repo))
+					if evt.Branch != "" {
+						debug.WriteString(fmt.Sprintf(":%s", evt.Branch))
+					}
+					debug.WriteString(")")
+				}
+				if content := extractEventContent(evt); content != "" {
+					if len(content) > 80 {
+						content = content[:80] + "..."
+					}
+					debug.WriteString(fmt.Sprintf(": %s", content))
+				}
+				debug.WriteString("\n")
+			}
+			debug.WriteString("\n")
+		}
+		debug.WriteString("```\n\n")
+	}
+
+	debug.WriteString("</details>\n\n")
+
+	return debug.String()
+}
+
+func (p *Plugin) saveSummary(summary string, focusStart, focusEnd time.Time, contextEvents, focusEvents []*events.Event) error {
 	dataDir, err := config.DataDir()
 	if err != nil {
 		return err
@@ -596,7 +714,7 @@ func (p *Plugin) saveSummary(summary string, focusStart, focusEnd time.Time, foc
 	filename := fmt.Sprintf("summary_%s.md", focusStart.Format("2006-01-02"))
 	path := filepath.Join(summariesDir, filename)
 
-	section := p.buildMarkdownSection(summary, focusStart, focusEnd, focusEvents)
+	section := p.buildMarkdownSection(summary, focusStart, focusEnd, contextEvents, focusEvents)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		header := fmt.Sprintf("# Development Summary - %s\n\n", focusStart.Format("January 2, 2006"))
