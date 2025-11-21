@@ -1,9 +1,9 @@
-> ⚠️ **Honest Note About This Project**
+> ⚠️ **An Important Note On This Project**
 >
-> The README looks polished because I care about docs,  not because this is a mature or prod‑ready tool yet.  
+> This isn't necessarily a "production ready" tool yet.  
 > DevLog is actively used *by me* every day, but it is still evolving, still rough in places, and still missing features.  
->
-> I'll update or remove this note when the project status changes.
+> 
+> I've already found a lot of value in having it, but YMMV.
 
 ---
 
