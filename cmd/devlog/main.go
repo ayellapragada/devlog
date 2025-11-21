@@ -23,7 +23,7 @@ import (
 func main() {
 	app := &cli.App{
 		Name:  "devlog",
-		Usage: "Development journaling system",
+		Usage: "An automated development journaling system",
 		Commands: []*cli.Command{
 			commands.InitCommand(),
 			commands.ConfigCommand(),
@@ -36,6 +36,7 @@ func main() {
 			commands.IngestCommand(),
 			commands.PollCommand(),
 			commands.WebCommand(),
+			commands.VersionCommand(),
 		},
 	}
 

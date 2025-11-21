@@ -1,10 +1,19 @@
 .PHONY: build test lint fmt clean install help
 
+VERSION ?= dev
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_DIRTY := $(shell git diff --quiet 2>/dev/null && echo "false" || echo "true")
+BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+LDFLAGS := -X 'devlog/cmd/devlog/commands.Version=$(VERSION)' \
+           -X 'devlog/cmd/devlog/commands.GitCommit=$(GIT_COMMIT)' \
+           -X 'devlog/cmd/devlog/commands.GitDirty=$(GIT_DIRTY)' \
+           -X 'devlog/cmd/devlog/commands.BuildTime=$(BUILD_TIME)'
+
 # Build binary
 build:
 	@echo "Building binary..."
 	@mkdir -p bin
-	go build -o bin/devlog ./cmd/devlog
+	go build -ldflags "$(LDFLAGS)" -o bin/devlog ./cmd/devlog
 	@echo "Built: bin/devlog"
 
 # Run tests with coverage
@@ -31,7 +40,7 @@ lint:
 # Install binary to $GOPATH/bin
 install:
 	@echo "Installing to $GOPATH/bin..."
-	go install ./cmd/devlog
+	go install -ldflags "$(LDFLAGS)" ./cmd/devlog
 
 # Clean build artifacts
 clean:
