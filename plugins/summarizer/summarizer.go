@@ -70,7 +70,7 @@ func (p *Plugin) Uninstall(ctx *install.Context) error {
 
 func (p *Plugin) DefaultConfig() interface{} {
 	return &Config{
-		IntervalMinutes:      15,
+		IntervalMinutes:      30,
 		ContextWindowMinutes: 60,
 	}
 }

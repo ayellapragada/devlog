@@ -90,7 +90,7 @@ Choose which sources to capture from:
 ```bash
 devlog module install git        # Git operations
 devlog module install shell      # Shell commands
-# ... and many more!
+devlog module install git shell  # Or even install multiple at once
 ```
 
 ### 3. Start the Daemon
@@ -117,9 +117,13 @@ devlog search "npm install"
 devlog module list
 ```
 
-### 5. (Optional) Enable Summaries
+### 5. (Optional) Enable Plugins
 
-Install the summarizer plugin:
+Modules allow you to ingest events from different sources.  
+
+Plugins allow you to do something with that information.  
+
+For example, you can install the summarizer plugin:  
 
 ```bash
 devlog plugin install summarizer
@@ -142,7 +146,7 @@ plugins:
 
 Using an anthropic key is also supported for those of you that can't help but share more info with big tech companies.
 
-Summaries are automatically generated and saved to `~/.config/devlog/summaries/`.
+Summaries are then automatically generated and saved to `~/.config/devlog/summaries/`.
 
 ## 🏗 Architecture
 
@@ -346,17 +350,19 @@ devlog config edit                   # Edit in $EDITOR
 ### Module Management
 
 ```bash
-devlog module list                   # List available modules
-devlog module install <name>         # Install and enable a module
-devlog module uninstall <name>       # Uninstall a module
+devlog module list                         # List available modules
+devlog module install [name...]            # Install one or more modules
+devlog module uninstall [name...]          # Uninstall one or more modules
+devlog module uninstall --purge [name...]  # Remove config completely
 ```
 
 ### Plugin Management
 
 ```bash
-devlog plugin list                   # List available plugins
-devlog plugin install <name>         # Install and enable a plugin
-devlog plugin uninstall <name>       # Uninstall a plugin
+devlog plugin list                         # List available plugins
+devlog plugin install [name...]            # Install one or more plugins
+devlog plugin uninstall [name...]          # Uninstall one or more plugins
+devlog plugin uninstall --purge [name...]  # Remove config completely
 ```
 
 ## ⚙️ Configuration
@@ -442,9 +448,9 @@ devlog status -v -n 20
 ### Modules not working
 
 ```bash
-# Reinstall git module
-devlog module uninstall git
-devlog module install git
+# Uninstall and reinstall that particular extension
+devlog module uninstall --purge git
+devlog module install git 
 
 # Check shell integration
 echo $PROMPT_COMMAND  # Should include devlog

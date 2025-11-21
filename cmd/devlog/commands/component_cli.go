@@ -25,8 +25,8 @@ func createComponentCommandCli(
 			},
 			{
 				Name:      "install",
-				Usage:     fmt.Sprintf("Install and enable a %s", componentType),
-				ArgsUsage: "<name>",
+				Usage:     fmt.Sprintf("Install and enable one or more %s", pluralName),
+				ArgsUsage: "<name> [name...]",
 				Action: func(c *cli.Context) error {
 					if c.NArg() < 1 {
 						return fmt.Errorf("%s name required", componentType)
@@ -37,8 +37,8 @@ func createComponentCommandCli(
 			},
 			{
 				Name:      "uninstall",
-				Usage:     fmt.Sprintf("Uninstall and disable a %s (preserves config)", componentType),
-				ArgsUsage: "<name>",
+				Usage:     fmt.Sprintf("Uninstall and disable one or more %s (preserves config)", pluralName),
+				ArgsUsage: "<name> [name...]",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:  "purge",

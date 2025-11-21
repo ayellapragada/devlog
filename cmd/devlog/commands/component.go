@@ -55,17 +55,16 @@ func componentList(pluralName string, registry ComponentRegistry, configOps Comp
 		status := ""
 		if showStatus {
 			if configOps.IsEnabled(component.Name()) {
-				status = " [enabled]"
+				status = " [✓] "
 			} else {
-				status = " [disabled]"
+				status = " [ ] "
 			}
 		}
-		fmt.Printf("  %s%s\n", component.Name(), status)
-		fmt.Printf("    %s\n", component.Description())
-		fmt.Println()
+		fmt.Printf("  %s%-12s %s\n", status, component.Name(), component.Description())
 	}
 
 	if !showStatus {
+		fmt.Println()
 		fmt.Println("Run 'devlog init' to initialize configuration")
 	}
 
@@ -79,51 +78,66 @@ func componentInstall(
 	configOps ComponentConfig,
 ) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: devlog %s install <name>", componentType)
+		return fmt.Errorf("usage: devlog %s install <name> [name...]", componentType)
 	}
-
-	componentName := args[0]
-
-	component, err := registry.Get(componentName)
-	if err != nil {
-		return fmt.Errorf("%s not found: %s", componentType, componentName)
-	}
-
-	if configOps.IsEnabled(componentName) {
-		fmt.Printf("%s '%s' is already enabled\n", capitalize(componentType), componentName)
-		return nil
-	}
-
-	fmt.Printf("Installing %s: %s\n", componentType, componentName)
-	fmt.Printf("Description: %s\n", component.Description())
-	fmt.Println()
 
 	ctx := createInstallContext()
+	var failed []string
+	var succeeded []string
 
-	if err := component.Install(ctx); err != nil {
-		return fmt.Errorf("install %s: %w", componentType, err)
+	for _, componentName := range args {
+		component, err := registry.Get(componentName)
+		if err != nil {
+			fmt.Printf("✗ %s not found: %s\n", capitalize(componentType), componentName)
+			failed = append(failed, componentName)
+			continue
+		}
+
+		if configOps.IsEnabled(componentName) {
+			fmt.Printf("  %s '%s' is already enabled\n", capitalize(componentType), componentName)
+			continue
+		}
+
+		fmt.Printf("Installing %s: %s\n", componentType, componentName)
+
+		if err := component.Install(ctx); err != nil {
+			fmt.Printf("✗ Failed to install %s '%s': %v\n", componentType, componentName, err)
+			failed = append(failed, componentName)
+			continue
+		}
+
+		configOps.SetEnabled(componentName, true)
+
+		if defaultCfg := component.DefaultConfig(); defaultCfg != nil {
+			if cfgMap, ok := defaultCfg.(map[string]interface{}); ok {
+				configOps.SetConfig(componentName, cfgMap)
+			} else {
+				data, _ := json.Marshal(defaultCfg)
+				var cfgMap map[string]interface{}
+				if json.Unmarshal(data, &cfgMap) == nil {
+					configOps.SetConfig(componentName, cfgMap)
+				}
+			}
+		}
+
+		fmt.Printf("✓ %s '%s' installed and enabled\n", capitalize(componentType), componentName)
+		succeeded = append(succeeded, componentName)
 	}
 
-	configOps.SetEnabled(componentName, true)
-
-	if defaultCfg := component.DefaultConfig(); defaultCfg != nil {
-		if cfgMap, ok := defaultCfg.(map[string]interface{}); ok {
-			configOps.SetConfig(componentName, cfgMap)
-		} else {
-			data, _ := json.Marshal(defaultCfg)
-			var cfgMap map[string]interface{}
-			if json.Unmarshal(data, &cfgMap) == nil {
-				configOps.SetConfig(componentName, cfgMap)
-			}
+	if len(succeeded) > 0 {
+		if err := configOps.Save(); err != nil {
+			return fmt.Errorf("save config: %w", err)
 		}
 	}
 
-	if err := configOps.Save(); err != nil {
-		return fmt.Errorf("save config: %w", err)
-	}
-
 	fmt.Println()
-	fmt.Printf("✓ %s '%s' installed and enabled\n", capitalize(componentType), componentName)
+	if len(succeeded) > 0 {
+		fmt.Printf("Successfully installed %d %s(s)\n", len(succeeded), componentType)
+	}
+	if len(failed) > 0 {
+		fmt.Printf("Failed to install %d %s(s)\n", len(failed), componentType)
+		return fmt.Errorf("some %ss failed to install", componentType)
+	}
 
 	return nil
 }
@@ -135,33 +149,22 @@ func componentUninstall(
 	configOps ComponentConfig,
 ) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: devlog %s uninstall [--purge] <name>", componentType)
+		return fmt.Errorf("usage: devlog %s uninstall [--purge] <name> [name...]", componentType)
 	}
 
 	var purge bool
-	var componentName string
+	var componentNames []string
 
 	if args[0] == "--purge" {
 		if len(args) < 2 {
-			return fmt.Errorf("usage: devlog %s uninstall --purge <name>", componentType)
+			return fmt.Errorf("usage: devlog %s uninstall --purge <name> [name...]", componentType)
 		}
 		purge = true
-		componentName = args[1]
+		componentNames = args[1:]
 	} else {
-		componentName = args[0]
+		componentNames = args
 	}
 
-	component, err := registry.Get(componentName)
-	if err != nil {
-		return fmt.Errorf("%s not found: %s", componentType, componentName)
-	}
-
-	if !configOps.IsEnabled(componentName) {
-		fmt.Printf("%s '%s' is not enabled\n", capitalize(componentType), componentName)
-		return nil
-	}
-
-	fmt.Printf("Uninstalling %s: %s\n", componentType, componentName)
 	if purge {
 		fmt.Println("Mode: purge (will remove all configuration)")
 	} else {
@@ -170,26 +173,57 @@ func componentUninstall(
 	fmt.Println()
 
 	ctx := createInstallContext()
+	var failed []string
+	var succeeded []string
 
-	if err := component.Uninstall(ctx); err != nil {
-		return fmt.Errorf("uninstall %s: %w", componentType, err)
+	for _, componentName := range componentNames {
+		component, err := registry.Get(componentName)
+		if err != nil {
+			fmt.Printf("✗ %s not found: %s\n", capitalize(componentType), componentName)
+			failed = append(failed, componentName)
+			continue
+		}
+
+		if !configOps.IsEnabled(componentName) {
+			fmt.Printf("  %s '%s' is not enabled\n", capitalize(componentType), componentName)
+			continue
+		}
+
+		fmt.Printf("Uninstalling %s: %s\n", componentType, componentName)
+
+		if err := component.Uninstall(ctx); err != nil {
+			fmt.Printf("✗ Failed to uninstall %s '%s': %v\n", componentType, componentName, err)
+			failed = append(failed, componentName)
+			continue
+		}
+
+		if purge {
+			configOps.ClearConfig(componentName)
+		} else {
+			configOps.SetEnabled(componentName, false)
+		}
+
+		if purge {
+			fmt.Printf("✓ %s '%s' uninstalled and configuration removed\n", capitalize(componentType), componentName)
+		} else {
+			fmt.Printf("✓ %s '%s' uninstalled\n", capitalize(componentType), componentName)
+		}
+		succeeded = append(succeeded, componentName)
 	}
 
-	if purge {
-		configOps.ClearConfig(componentName)
-	} else {
-		configOps.SetEnabled(componentName, false)
-	}
-
-	if err := configOps.Save(); err != nil {
-		return fmt.Errorf("save config: %w", err)
+	if len(succeeded) > 0 {
+		if err := configOps.Save(); err != nil {
+			return fmt.Errorf("save config: %w", err)
+		}
 	}
 
 	fmt.Println()
-	if purge {
-		fmt.Printf("✓ %s '%s' uninstalled and configuration removed\n", capitalize(componentType), componentName)
-	} else {
-		fmt.Printf("✓ %s '%s' uninstalled\n", capitalize(componentType), componentName)
+	if len(succeeded) > 0 {
+		fmt.Printf("Successfully uninstalled %d %s(s)\n", len(succeeded), componentType)
+	}
+	if len(failed) > 0 {
+		fmt.Printf("Failed to uninstall %d %s(s)\n", len(failed), componentType)
+		return fmt.Errorf("some %ss failed to uninstall", componentType)
 	}
 
 	return nil
