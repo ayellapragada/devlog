@@ -197,6 +197,7 @@ func (p *Plugin) generateQueryPlan(ctx context.Context, question string) (*Query
 	now := time.Now()
 	_, offset := now.Zone()
 	tzName := now.Format("MST")
+	twoHoursAgo := now.Add(-2 * time.Hour)
 
 	prompt := fmt.Sprintf(`You are a query planner for a development activity database. Convert the user's natural language question into a structured query plan.
 
@@ -219,12 +220,13 @@ Analyze the question and generate a JSON query plan with these fields:
     "branch": "branch name pattern" or null,
     "keywords": "search keywords" or null
   },
-  "limit": number (choose an appropriate limit based on the question, typically 100-500),
+  "limit": number (choose an appropriate limit based on the question, typically 50-100),
   "response_goal": "concise description of what the user wants to know"
 }
 
 Time parsing rules:
 - ALL times should use the user's local timezone: %s (offset: %+d hours from UTC)
+- DEFAULT: If the question is vague about time (e.g., "what was I working on?", "what did I do?"), default to the LAST 2 HOURS (%s to now)
 - "today" = start of today (00:00:00 local time) to now
 - "yesterday" = start of yesterday to end of yesterday (local time)
 - "last week" = 7 days ago to now
@@ -242,6 +244,7 @@ Output ONLY valid JSON, no explanation.`,
 		now.Format("2006-01-02"),
 		question,
 		tzName, offset/3600,
+		twoHoursAgo.Format(time.RFC3339),
 		now.Format("-07:00"))
 
 	responseStr, err := p.llmClient.Complete(ctx, prompt)
@@ -266,6 +269,10 @@ Output ONLY valid JSON, no explanation.`,
 	}
 
 	if plan.Limit <= 0 {
+		plan.Limit = 50
+	}
+	if plan.Limit > 100 {
+		fmt.Println("Warning: limit is greater than 100, setting to 100")
 		plan.Limit = 100
 	}
 

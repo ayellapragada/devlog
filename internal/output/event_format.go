@@ -80,13 +80,13 @@ func ExtractContent(evt *events.Event, maxLen int) string {
 }
 
 func FormatEventLine(evt *events.Event, maxSummaryLen int, maxMessageLen int, maxCommandLen int, maxTextLen int) string {
-	line := fmt.Sprintf("\n[%s] %s/%s", evt.Timestamp, evt.Source, evt.Type)
+	line := fmt.Sprintf("\n[%s] source=%s type=%s", evt.Timestamp, evt.Source, evt.Type)
 
 	if evt.Repo != "" {
-		line += fmt.Sprintf(" (repo: %s)", evt.Repo)
+		line += fmt.Sprintf(" repo=%s", evt.Repo)
 	}
 	if evt.Branch != "" {
-		line += fmt.Sprintf(" (branch: %s)", evt.Branch)
+		line += fmt.Sprintf(" branch=%s", evt.Branch)
 	}
 
 	if workdir, ok := evt.Payload["workdir"].(string); ok && workdir != "" {

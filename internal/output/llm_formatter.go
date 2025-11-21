@@ -37,7 +37,7 @@ func (f *LLMFormatter) Format(ctx context.Context, results []*storage.SearchResu
 
 	eventsBySource := groupEventsBySource(events)
 
-	prompt := fmt.Sprintf(`You are summarizing development activity based on actual logged events.
+	prompt := fmt.Sprintf(`You are summarizing development activity for a user based on actual logged events.
 
 User's question goal: %s
 
@@ -45,15 +45,16 @@ Events found:
  %s
 
 Instructions:
-- Provide a CONCISE, narrative summary in 2-4 paragraphs maximum
-- Do NOT create multiple sections or headings
+- Provide a CONCISE, narrative summary in 1-3 paragraphs maximum
+- Address the user directly using "you" when appropriate.
 - Do NOT list individual events separately
 - Synthesize related events into coherent narratives (e.g., "worked on authentication" instead of listing individual file edits)
 - Include key details: repos, branches, significant commits, important commands
 - Use past tense for completed actions
 - Prioritize CRITICAL and HIGH priority events but mention other significant activity
-- If there are many similar events (e.g., clipboard commands), mention them briefly in aggregate
+- If there are many similar events (e.g., clipboard commands), consolidate them into a single sentence.
 - Focus on what was accomplished, not individual timestamps
+- Remember: the user is asking about THEIR OWN activity, so use second person ("you") not third person
 
 Generate a concise narrative summary now.`, f.responseGoal, formattedBySource(eventsBySource))
 

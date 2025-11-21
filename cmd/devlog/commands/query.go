@@ -45,6 +45,8 @@ func QueryCommand() *cli.Command {
 			llmClient := plugin.LLMClient()
 			formatter := output.NewLLMFormatter(llmClient, result.Plan.ResponseGoal)
 			presenter := output.NewSearchPresenterWithFormatter(os.Stdout, formatter)
+			fmt.Println("==================================")
+			fmt.Println("")
 			return presenter.Present(ctx, result.Results, question)
 		},
 	}
