@@ -24,16 +24,18 @@ import (
 )
 
 type Plugin struct {
-	llmClient     llm.Client
-	storage       *storage.Storage
-	interval      time.Duration
-	contextWindow time.Duration
-	logger        *logger.Logger
+	llmClient      llm.Client
+	storage        *storage.Storage
+	interval       time.Duration
+	contextWindow  time.Duration
+	excludeSources map[string]bool
+	logger         *logger.Logger
 }
 
 type Config struct {
-	IntervalMinutes      int `json:"interval_minutes"`
-	ContextWindowMinutes int `json:"context_window_minutes"`
+	IntervalMinutes      int      `json:"interval_minutes"`
+	ContextWindowMinutes int      `json:"context_window_minutes"`
+	ExcludeSources       []string `json:"exclude_sources"`
 }
 
 func init() {
@@ -72,6 +74,7 @@ func (p *Plugin) DefaultConfig() interface{} {
 	return &Config{
 		IntervalMinutes:      30,
 		ContextWindowMinutes: 60,
+		ExcludeSources:       []string{"clipboard"},
 	}
 }
 
@@ -154,6 +157,10 @@ func (p *Plugin) Start(ctx context.Context) error {
 
 	p.interval = time.Duration(cfg.IntervalMinutes) * time.Minute
 	p.contextWindow = time.Duration(cfg.ContextWindowMinutes) * time.Minute
+	p.excludeSources = make(map[string]bool)
+	for _, source := range cfg.ExcludeSources {
+		p.excludeSources[source] = true
+	}
 	p.logger = logger.Default()
 
 	dataDir, err := config.DataDir()
@@ -261,19 +268,22 @@ func (p *Plugin) generateSummary(ctx context.Context) error {
 		return fmt.Errorf("list focus events: %w", err)
 	}
 
-	if len(focusEvents) == 0 {
+	filteredContextEvents := p.filterEvents(contextEvents)
+	filteredFocusEvents := p.filterEvents(focusEvents)
+
+	if len(filteredFocusEvents) == 0 {
 		p.logger.Debug("no events in focus window, generating placeholder")
-		if err := p.saveSummary("", focusStart, focusEnd, contextEvents, focusEvents); err != nil {
+		if err := p.saveSummary("", focusStart, focusEnd, filteredContextEvents, filteredFocusEvents); err != nil {
 			return fmt.Errorf("save summary: %w", err)
 		}
 		return nil
 	}
 
-	prompt := p.buildPrompt(contextEvents, focusEvents)
+	prompt := p.buildPrompt(filteredContextEvents, filteredFocusEvents)
 
 	p.logger.Debug("requesting LLM summary",
-		slog.Int("context_events", len(contextEvents)),
-		slog.Int("focus_events", len(focusEvents)))
+		slog.Int("context_events", len(filteredContextEvents)),
+		slog.Int("focus_events", len(filteredFocusEvents)))
 
 	summary, err := p.llmClient.Complete(ctx, prompt)
 	if err != nil {
@@ -285,15 +295,29 @@ func (p *Plugin) generateSummary(ctx context.Context) error {
 		return fmt.Errorf("empty summary from LLM")
 	}
 
-	if err := p.saveSummary(summary, focusStart, focusEnd, contextEvents, focusEvents); err != nil {
+	if err := p.saveSummary(summary, focusStart, focusEnd, filteredContextEvents, filteredFocusEvents); err != nil {
 		return fmt.Errorf("save summary: %w", err)
 	}
 
 	p.logger.Info("summary generated",
-		slog.Int("context_events", len(contextEvents)),
-		slog.Int("focus_events", len(focusEvents)))
+		slog.Int("context_events", len(filteredContextEvents)),
+		slog.Int("focus_events", len(filteredFocusEvents)))
 
 	return nil
+}
+
+func (p *Plugin) filterEvents(evts []*events.Event) []*events.Event {
+	if len(p.excludeSources) == 0 {
+		return evts
+	}
+
+	filtered := make([]*events.Event, 0, len(evts))
+	for _, evt := range evts {
+		if !p.excludeSources[evt.Source] {
+			filtered = append(filtered, evt)
+		}
+	}
+	return filtered
 }
 
 func (p *Plugin) buildPrompt(contextEvents, focusEvents []*events.Event) string {
@@ -739,16 +763,41 @@ func (p *Plugin) saveSummary(summary string, focusStart, focusEnd time.Time, con
 	return nil
 }
 
-func NewForPoll(llmClient llm.Client, store *storage.Storage, interval, contextWindow time.Duration) *Plugin {
+func NewForPoll(llmClient llm.Client, store *storage.Storage, interval, contextWindow time.Duration, excludeSources []string) *Plugin {
+	excludeMap := make(map[string]bool)
+	for _, source := range excludeSources {
+		excludeMap[source] = true
+	}
 	return &Plugin{
-		llmClient:     llmClient,
-		storage:       store,
-		interval:      interval,
-		contextWindow: contextWindow,
-		logger:        logger.Default(),
+		llmClient:      llmClient,
+		storage:        store,
+		interval:       interval,
+		contextWindow:  contextWindow,
+		excludeSources: excludeMap,
+		logger:         logger.Default(),
 	}
 }
 
 func (p *Plugin) GenerateSummaryNow(ctx context.Context) error {
 	return p.generateSummary(ctx)
+}
+
+func (p *Plugin) GetLLMClient() llm.Client {
+	return p.llmClient
+}
+
+func (p *Plugin) SaveSummaryExported(summary string, focusStart, focusEnd time.Time, contextEvents, focusEvents []*events.Event) error {
+	return p.saveSummary(summary, focusStart, focusEnd, contextEvents, focusEvents)
+}
+
+func BuildPromptExported(contextEvents, focusEvents []*events.Event) string {
+	return buildPrompt(contextEvents, focusEvents, FormatEvent)
+}
+
+func (p *Plugin) FilterEvents(evts []*events.Event) []*events.Event {
+	return p.filterEvents(evts)
+}
+
+func (p *Plugin) BuildPrompt(contextEvents, focusEvents []*events.Event) string {
+	return p.buildPrompt(contextEvents, focusEvents)
 }

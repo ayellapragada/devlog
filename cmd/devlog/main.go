@@ -35,6 +35,7 @@ func main() {
 			commands.PluginCommand(),
 			commands.IngestCommand(),
 			commands.PollCommand(),
+			commands.SummarizerCommand(),
 			commands.WebCommand(),
 			commands.VersionCommand(),
 		},

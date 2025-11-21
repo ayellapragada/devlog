@@ -244,13 +244,27 @@ func pollSummarizer() error {
 	interval := time.Duration(intervalMins) * time.Minute
 	contextWindow := time.Duration(contextWindowMins) * time.Minute
 
+	var excludeSources []string
+	if val, ok := pluginCfg["exclude_sources"]; ok {
+		if arr, ok := val.([]interface{}); ok {
+			for _, v := range arr {
+				if s, ok := v.(string); ok {
+					excludeSources = append(excludeSources, s)
+				}
+			}
+		}
+	}
+
 	fmt.Printf("Configuration:\n")
 	fmt.Printf("  Provider: %s\n", provider)
 	fmt.Printf("  Interval: %d minutes\n", intervalMins)
 	fmt.Printf("  Context window: %d minutes\n", contextWindowMins)
+	if len(excludeSources) > 0 {
+		fmt.Printf("  Excluding sources: %v\n", excludeSources)
+	}
 	fmt.Println()
 
-	plugin := summarizer.NewForPoll(llmClient, store, interval, contextWindow)
+	plugin := summarizer.NewForPoll(llmClient, store, interval, contextWindow, excludeSources)
 
 	fmt.Println("Generating summary...")
 	if err := plugin.GenerateSummaryNow(context.Background()); err != nil {
