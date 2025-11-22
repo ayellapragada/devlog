@@ -15,12 +15,12 @@ import (
 func QueryCommand() *cli.Command {
 	return &cli.Command{
 		Name:        "query",
-		Usage:       "Ask questions about your development history in natural language",
+		Usage:       "Ask questions about your event history in natural language",
 		UsageText:   "devlog query [options] [question]",
-		Description: "Uses an LLM to understand your question and query your development history intelligently.\n\n   Examples:\n      devlog query \"What was I working on?\"\n      devlog query \"What files did I change today?\"\n      devlog query \"Show me all git commits from last week\"\n      devlog query \"What errors did I encounter yesterday?\"\n      devlog query \"When did I last work on the auth module?\"",
+		Description: "Uses an LLM to understand your question and query your event history intelligently.\n\n   Examples:\n      devlog query \"What was I working on?\"\n      devlog query \"What files did I change today?\"\n      devlog query \"Show me all git commits from last week\"\n      devlog query \"What errors did I encounter yesterday?\"\n      devlog query \"When did I last work on the auth module?\"",
 		ArgsUsage:   "[question]",
 		Action: func(c *cli.Context) error {
-			question := "What was I working on?"
+			question := "What was I working on my event history?"
 			if c.NArg() > 0 {
 				question = strings.Join(c.Args().Slice(), " ")
 			}

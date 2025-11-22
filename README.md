@@ -302,7 +302,7 @@ Run `devlog search --help` for the complete reference.
 
 #### 2. **Natural Language Queries** - Ask questions in plain English (LLM-Powered)
 
-Ask questions about your development history naturally and get intelligent, summarized answers.
+Ask questions about your event log naturally and get intelligent, summarized answers.
 There is a limit on the number of events that can be summarized.
 Realistically, if you ask for a summary of a full week, in it's current state that will break.
 

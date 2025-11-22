@@ -3,8 +3,10 @@ package main
 import (
 	"log"
 	"os"
+	"slices"
 
 	"devlog/cmd/devlog/commands"
+	"devlog/internal/config"
 
 	"github.com/urfave/cli/v2"
 
@@ -21,23 +23,65 @@ import (
 )
 
 func main() {
+	coreCommands := []*cli.Command{
+		commands.InitCommand(),
+		commands.ConfigCommand(),
+		commands.DaemonCommand(),
+		commands.StatusCommand(),
+		commands.SearchCommand(),
+		commands.ModuleCommand(),
+		commands.PluginCommand(),
+		commands.WebCommand(),
+		commands.VersionCommand(),
+	}
+
+	for _, cmd := range coreCommands {
+		cmd.Category = "CORE"
+	}
+
+	cfg, err := config.Load()
+	var pluginCommands []*cli.Command
+
+	if err == nil && cfg.IsPluginEnabled("query") {
+		pluginCommands = append(pluginCommands, commands.QueryCommand())
+	}
+
+	if err == nil && cfg.IsPluginEnabled("summarizer") {
+		pluginCommands = append(pluginCommands, commands.SummarizerCommand())
+	}
+
+	for _, cmd := range pluginCommands {
+		cmd.Category = "PLUGIN"
+		cmd.Hidden = false
+	}
+
+	internalCommands := []*cli.Command{
+		commands.IngestCommand(),
+		commands.PollCommand(),
+	}
+
+	showInternal := slices.Contains(os.Args, "--show-internal")
+
+	for _, cmd := range internalCommands {
+		cmd.Category = "INTERNAL"
+		cmd.Hidden = !showInternal
+	}
+
+	allCommands := make([]*cli.Command, 0, len(coreCommands)+len(pluginCommands)+len(internalCommands))
+	allCommands = append(allCommands, coreCommands...)
+	allCommands = append(allCommands, pluginCommands...)
+	allCommands = append(allCommands, internalCommands...)
+
 	app := &cli.App{
-		Name:  "devlog",
-		Usage: "An automated development journaling system",
-		Commands: []*cli.Command{
-			commands.InitCommand(),
-			commands.ConfigCommand(),
-			commands.DaemonCommand(),
-			commands.StatusCommand(),
-			commands.SearchCommand(),
-			commands.QueryCommand(),
-			commands.ModuleCommand(),
-			commands.PluginCommand(),
-			commands.IngestCommand(),
-			commands.PollCommand(),
-			commands.SummarizerCommand(),
-			commands.WebCommand(),
-			commands.VersionCommand(),
+		Name:     "devlog",
+		Usage:    "An automated development journaling system",
+		Commands: allCommands,
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:   "show-internal",
+				Usage:  "Show internal/debug commands in help output",
+				Hidden: true,
+			},
 		},
 	}
 

@@ -63,7 +63,7 @@ func (p *Plugin) Metadata() plugins.Metadata {
 func (p *Plugin) Install(ctx *install.Context) error {
 	ctx.Log("Installing Query plugin")
 	ctx.Log("This plugin requires the 'llm' plugin to be enabled")
-	ctx.Log("Use 'devlog query <question>' to ask questions about your dev history")
+	ctx.Log("Use 'devlog query <question>' to ask questions about your event history")
 	return nil
 }
 

@@ -20,9 +20,8 @@ import (
 
 func SummarizerCommand() *cli.Command {
 	return &cli.Command{
-		Name:   "summarizer",
-		Usage:  "Manage summarizer plugin",
-		Hidden: true,
+		Name:  "summarizer",
+		Usage: "Use extra functionality to aid the summarizer",
 		Subcommands: []*cli.Command{
 			{
 				Name:      "backfill",
