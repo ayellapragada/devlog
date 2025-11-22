@@ -3,7 +3,11 @@ package commands
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"time"
 
 	"devlog/internal/config"
@@ -37,6 +41,11 @@ func SummarizerCommand() *cli.Command {
 					},
 				},
 				Action: backfillAction,
+			},
+			{
+				Name:   "open",
+				Usage:  "Open the latest summary file",
+				Action: openAction,
 			},
 		},
 	}
@@ -277,4 +286,98 @@ func generateSummaryForBackfill(plugin *summarizer.Plugin, store *storage.Storag
 	}
 
 	return nil
+}
+
+func openAction(c *cli.Context) error {
+	dataDir, err := config.DataDir()
+	if err != nil {
+		return fmt.Errorf("get data directory: %w", err)
+	}
+
+	summariesDir := filepath.Join(dataDir, "summaries")
+	if _, err := os.Stat(summariesDir); os.IsNotExist(err) {
+		return fmt.Errorf("no summaries found: %s does not exist", summariesDir)
+	}
+
+	entries, err := os.ReadDir(summariesDir)
+	if err != nil {
+		return fmt.Errorf("read summaries directory: %w", err)
+	}
+
+	var summaryFiles []os.FileInfo
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".md" {
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			summaryFiles = append(summaryFiles, info)
+		}
+	}
+
+	if len(summaryFiles) == 0 {
+		return fmt.Errorf("no summary files found in %s", summariesDir)
+	}
+
+	sort.Slice(summaryFiles, func(i, j int) bool {
+		return summaryFiles[i].ModTime().After(summaryFiles[j].ModTime())
+	})
+
+	latestFile := filepath.Join(summariesDir, summaryFiles[0].Name())
+	absPath, err := filepath.Abs(latestFile)
+	if err != nil {
+		return fmt.Errorf("get absolute path: %w", err)
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		browsers := []string{
+			"Google Chrome",
+			"Brave Browser",
+			"Firefox",
+			"Safari",
+			"Microsoft Edge",
+			"Arc",
+			"Chromium",
+		}
+
+		var openErr error
+		for _, browser := range browsers {
+			cmd = exec.Command("open", "-a", browser, absPath)
+			if err := cmd.Start(); err == nil {
+				fmt.Printf("Opening %s in %s...\n", summaryFiles[0].Name(), browser)
+				return nil
+			}
+			openErr = err
+		}
+		return fmt.Errorf("failed to open in any browser: %w", openErr)
+
+	case "linux":
+		browsers := []string{"google-chrome", "chrome", "chromium", "firefox", "brave-browser"}
+		var openErr error
+		for _, browser := range browsers {
+			cmd = exec.Command(browser, absPath)
+			if err := cmd.Start(); err == nil {
+				fmt.Printf("Opening %s in browser...\n", summaryFiles[0].Name())
+				return nil
+			}
+			openErr = err
+		}
+		return fmt.Errorf("failed to open in any browser: %w", openErr)
+
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "chrome", absPath)
+		if err := cmd.Start(); err != nil {
+			cmd = exec.Command("cmd", "/c", "start", "firefox", absPath)
+			if err := cmd.Start(); err != nil {
+				return fmt.Errorf("failed to open browser: %w", err)
+			}
+		}
+		fmt.Printf("Opening %s in browser...\n", summaryFiles[0].Name())
+		return nil
+
+	default:
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
 }
