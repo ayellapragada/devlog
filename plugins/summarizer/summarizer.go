@@ -541,8 +541,8 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 		return fmt.Errorf("read summary file: %w", err)
 	}
 
-	inactivePeriodRegex := regexp.MustCompile(`(?m)^## (\d{2}:\d{2}) - (\d{2}:\d{2})\n\nNo development activity recorded during this period\.\n\n`)
-	allSectionRegex := regexp.MustCompile(`(?m)^## (\d{2}:\d{2}) - (\d{2}:\d{2})\n\n`)
+	inactivePeriodRegex := regexp.MustCompile(`(?m)^## (\d{2}:\d{2}) - (\d{2}:\d{2})(?: \([^)]+\))?\n\nNo development activity recorded during this period\.\n\n`)
+	allSectionRegex := regexp.MustCompile(`(?m)^## (\d{2}:\d{2}) - (\d{2}:\d{2})(?: \([^)]+\))?\n\n`)
 
 	inactiveMatches := inactivePeriodRegex.FindAllStringSubmatchIndex(string(content), -1)
 	allMatches := allSectionRegex.FindAllStringSubmatchIndex(string(content), -1)
@@ -576,9 +576,32 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 			}
 		}
 
-		updatedSection := fmt.Sprintf("## %s - %s\n\nNo development activity recorded during this period.\n\n",
+		lastInactiveStartTime, _ := time.Parse("15:04", lastInactiveStart)
+		focusEndTime, _ := time.Parse("15:04", focusEnd.Format("15:04"))
+
+		if focusEndTime.Before(lastInactiveStartTime) {
+			focusEndTime = focusEndTime.Add(24 * time.Hour)
+		}
+
+		duration := focusEndTime.Sub(lastInactiveStartTime)
+		hours := duration.Hours()
+
+		var durationStr string
+		if hours >= 1 {
+			if hours == float64(int(hours)) {
+				durationStr = fmt.Sprintf(" (%.0f hours)", hours)
+			} else {
+				durationStr = fmt.Sprintf(" (%.1f hours)", hours)
+			}
+		} else {
+			minutes := int(duration.Minutes())
+			durationStr = fmt.Sprintf(" (%d minutes)", minutes)
+		}
+
+		updatedSection := fmt.Sprintf("## %s - %s%s\n\nNo development activity recorded during this period.\n\n",
 			lastInactiveStart,
-			focusEnd.Format("15:04"))
+			focusEnd.Format("15:04"),
+			durationStr)
 
 		newContent := string(content[:lastInactiveMatch[0]]) + updatedSection + string(content[lastInactiveMatch[1]:])
 		return os.WriteFile(path, []byte(newContent), 0644)
@@ -599,9 +622,25 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 }
 
 func (p *Plugin) buildInactivePeriodSection(focusStart, focusEnd time.Time) string {
-	return fmt.Sprintf("## %s - %s\n\nNo development activity recorded during this period.\n\n",
+	duration := focusEnd.Sub(focusStart)
+	hours := duration.Hours()
+
+	var durationStr string
+	if hours >= 1 {
+		if hours == float64(int(hours)) {
+			durationStr = fmt.Sprintf(" (%.0f hours)", hours)
+		} else {
+			durationStr = fmt.Sprintf(" (%.1f hours)", hours)
+		}
+	} else {
+		minutes := int(duration.Minutes())
+		durationStr = fmt.Sprintf(" (%d minutes)", minutes)
+	}
+
+	return fmt.Sprintf("## %s - %s%s\n\nNo development activity recorded during this period.\n\n",
 		focusStart.Format("15:04"),
-		focusEnd.Format("15:04"))
+		focusEnd.Format("15:04"),
+		durationStr)
 }
 
 func (p *Plugin) saveSummary(summary string, focusStart, focusEnd time.Time, contextEvents, focusEvents []*events.Event) error {
