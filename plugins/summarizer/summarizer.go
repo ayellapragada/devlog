@@ -250,8 +250,12 @@ func (p *Plugin) generateSummary(ctx context.Context) error {
 	now := time.Now()
 	focusEnd := now
 	focusStart := now.Add(-p.interval)
-	contextStart := now.Add(-p.contextWindow)
+	contextStart := focusStart.Add(-p.contextWindow)
 
+	return p.GenerateSummaryForPeriod(ctx, focusStart, focusEnd, contextStart)
+}
+
+func (p *Plugin) GenerateSummaryForPeriod(ctx context.Context, focusStart, focusEnd, contextStart time.Time) error {
 	contextEvents, err := p.storage.QueryEventsContext(ctx, storage.QueryOptions{
 		StartTime: &contextStart,
 		EndTime:   &focusEnd,
@@ -637,20 +641,4 @@ func NewForPoll(llmClient llm.Client, store *storage.Storage, interval, contextW
 
 func (p *Plugin) GenerateSummaryNow(ctx context.Context) error {
 	return p.generateSummary(ctx)
-}
-
-func (p *Plugin) GetLLMClient() llm.Client {
-	return p.llmClient
-}
-
-func (p *Plugin) SaveSummaryExported(summary string, focusStart, focusEnd time.Time, contextEvents, focusEvents []*events.Event) error {
-	return p.saveSummary(summary, focusStart, focusEnd, contextEvents, focusEvents)
-}
-
-func (p *Plugin) FilterEvents(evts []*events.Event) []*events.Event {
-	return p.filterEvents(evts)
-}
-
-func (p *Plugin) BuildPrompt(contextEvents, focusEvents []*events.Event) string {
-	return buildPrompt(contextEvents, focusEvents, FormatEvent)
 }

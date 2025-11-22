@@ -277,7 +277,7 @@ func pollSummarizer() error {
 
 	fmt.Printf("✓ Summary saved to %s\n", path)
 	fmt.Println()
-	fmt.Println("Run 'devlog status' to see the latest activity")
+	fmt.Println("Run 'devlog summarizer open' to view the summary")
 
 	return nil
 }

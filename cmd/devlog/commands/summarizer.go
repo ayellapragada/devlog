@@ -249,42 +249,7 @@ func backfillSummarizer(start, end time.Time) error {
 func generateSummaryForBackfill(plugin *summarizer.Plugin, store *storage.Storage, focusStart, focusEnd time.Time, contextWindow time.Duration) error {
 	ctx := context.Background()
 	contextStart := focusStart.Add(-contextWindow)
-
-	contextEvents, err := store.QueryEventsContext(ctx, storage.QueryOptions{
-		StartTime: &contextStart,
-		EndTime:   &focusEnd,
-	})
-	if err != nil {
-		return fmt.Errorf("list context events: %w", err)
-	}
-
-	focusEvents, err := store.QueryEventsContext(ctx, storage.QueryOptions{
-		StartTime: &focusStart,
-		EndTime:   &focusEnd,
-	})
-	if err != nil {
-		return fmt.Errorf("list focus events: %w", err)
-	}
-
-	filteredContextEvents := plugin.FilterEvents(contextEvents)
-	filteredFocusEvents := plugin.FilterEvents(focusEvents)
-
-	var summary string
-	if len(filteredFocusEvents) > 0 {
-		prompt := plugin.BuildPrompt(filteredContextEvents, filteredFocusEvents)
-
-		llmClient := plugin.GetLLMClient()
-		summary, err = llmClient.Complete(ctx, prompt)
-		if err != nil {
-			return fmt.Errorf("generate summary: %w", err)
-		}
-	}
-
-	if err := plugin.SaveSummaryExported(summary, focusStart, focusEnd, filteredContextEvents, filteredFocusEvents); err != nil {
-		return fmt.Errorf("save summary: %w", err)
-	}
-
-	return nil
+	return plugin.GenerateSummaryForPeriod(ctx, focusStart, focusEnd, contextStart)
 }
 
 func openAction(c *cli.Context) error {
