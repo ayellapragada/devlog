@@ -258,7 +258,7 @@ func (p *Plugin) generateSummary(ctx context.Context) error {
 func (p *Plugin) GenerateSummaryForPeriod(ctx context.Context, focusStart, focusEnd, contextStart time.Time) error {
 	contextEvents, err := p.storage.QueryEventsContext(ctx, storage.QueryOptions{
 		StartTime: &contextStart,
-		EndTime:   &focusEnd,
+		EndTime:   &focusStart,
 	})
 	if err != nil {
 		return fmt.Errorf("list context events: %w", err)
@@ -443,7 +443,7 @@ func (p *Plugin) buildDebugSection(focusStart, focusEnd time.Time, contextEvents
 	debug.WriteString("Time Windows:\n")
 	debug.WriteString(fmt.Sprintf("  Context: %s to %s (%s)\n",
 		contextStart.Format("15:04:05"),
-		focusEnd.Format("15:04:05"),
+		focusStart.Format("15:04:05"),
 		p.contextWindow))
 	debug.WriteString(fmt.Sprintf("  Focus:   %s to %s (%s)\n",
 		focusStart.Format("15:04:05"),
