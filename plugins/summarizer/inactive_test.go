@@ -81,11 +81,52 @@ func TestUpdateOrCreateInactivePeriod_NonConsecutive(t *testing.T) {
 	}
 
 	content, _ := os.ReadFile(summaryFile)
+	if !strings.Contains(string(content), "## 00:00 - 02:30") {
+		t.Errorf("expected consolidated period from first start to last end, got:\n%s", content)
+	}
+
+	lines := strings.Count(string(content), "No development activity")
+	if lines != 1 {
+		t.Errorf("expected exactly 1 inactive message, got %d:\n%s", lines, content)
+	}
+}
+
+func TestUpdateOrCreateInactivePeriod_WithActivityBetween(t *testing.T) {
+	tmpDir := t.TempDir()
+	summaryFile := filepath.Join(tmpDir, "summary_2025-11-21.md")
+
+	p := &Plugin{
+		logger: logger.Default(),
+	}
+
+	t1, _ := time.Parse("15:04", "00:00")
+	t2, _ := time.Parse("15:04", "00:30")
+
+	if err := p.updateOrCreateInactivePeriod(summaryFile, t1, t2); err != nil {
+		t.Fatalf("first inactive period failed: %v", err)
+	}
+
+	activeSection := "## 01:00 - 01:30\n\nWorking on something\n\n"
+	f, _ := os.OpenFile(summaryFile, os.O_APPEND|os.O_WRONLY, 0644)
+	f.WriteString(activeSection)
+	f.Close()
+
+	t3, _ := time.Parse("15:04", "02:00")
+	t4, _ := time.Parse("15:04", "02:30")
+
+	if err := p.updateOrCreateInactivePeriod(summaryFile, t3, t4); err != nil {
+		t.Fatalf("second inactive period failed: %v", err)
+	}
+
+	content, _ := os.ReadFile(summaryFile)
 	if !strings.Contains(string(content), "## 00:00 - 00:30") {
-		t.Errorf("expected first period to remain, got:\n%s", content)
+		t.Errorf("expected first inactive period unchanged, got:\n%s", content)
+	}
+	if !strings.Contains(string(content), "## 01:00 - 01:30") {
+		t.Errorf("expected active period to remain, got:\n%s", content)
 	}
 	if !strings.Contains(string(content), "## 02:00 - 02:30") {
-		t.Errorf("expected second period to be separate, got:\n%s", content)
+		t.Errorf("expected second inactive period as separate, got:\n%s", content)
 	}
 
 	lines := strings.Count(string(content), "No development activity")

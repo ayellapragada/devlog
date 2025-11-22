@@ -542,21 +542,46 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 	}
 
 	inactivePeriodRegex := regexp.MustCompile(`(?m)^## (\d{2}:\d{2}) - (\d{2}:\d{2})\n\nNo development activity recorded during this period\.\n\n`)
-	matches := inactivePeriodRegex.FindAllStringSubmatchIndex(string(content), -1)
+	allSectionRegex := regexp.MustCompile(`(?m)^## (\d{2}:\d{2}) - (\d{2}:\d{2})\n\n`)
 
-	if len(matches) > 0 {
-		lastMatch := matches[len(matches)-1]
-		lastEndTime := string(content[lastMatch[4]:lastMatch[5]])
+	inactiveMatches := inactivePeriodRegex.FindAllStringSubmatchIndex(string(content), -1)
+	allMatches := allSectionRegex.FindAllStringSubmatchIndex(string(content), -1)
 
-		expectedStartTime := focusStart.Format("15:04")
-		if lastEndTime == expectedStartTime {
-			updatedSection := fmt.Sprintf("## %s - %s\n\nNo development activity recorded during this period.\n\n",
-				string(content[lastMatch[2]:lastMatch[3]]),
-				focusEnd.Format("15:04"))
+	if len(inactiveMatches) > 0 {
+		lastInactiveMatch := inactiveMatches[len(inactiveMatches)-1]
+		lastInactiveStart := string(content[lastInactiveMatch[2]:lastInactiveMatch[3]])
+		lastInactiveIdx := lastInactiveMatch[0]
 
-			newContent := string(content[:lastMatch[0]]) + updatedSection + string(content[lastMatch[1]:])
-			return os.WriteFile(path, []byte(newContent), 0644)
+		for _, match := range allMatches {
+			if match[0] > lastInactiveIdx {
+				isInactive := false
+				for _, inactiveMatch := range inactiveMatches {
+					if match[0] == inactiveMatch[0] {
+						isInactive = true
+						break
+					}
+				}
+				if !isInactive {
+					section := p.buildInactivePeriodSection(focusStart, focusEnd)
+					f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+					if err != nil {
+						return fmt.Errorf("open summary file: %w", err)
+					}
+					defer f.Close()
+					if _, err := f.WriteString(section); err != nil {
+						return fmt.Errorf("write inactive period: %w", err)
+					}
+					return nil
+				}
+			}
 		}
+
+		updatedSection := fmt.Sprintf("## %s - %s\n\nNo development activity recorded during this period.\n\n",
+			lastInactiveStart,
+			focusEnd.Format("15:04"))
+
+		newContent := string(content[:lastInactiveMatch[0]]) + updatedSection + string(content[lastInactiveMatch[1]:])
+		return os.WriteFile(path, []byte(newContent), 0644)
 	}
 
 	section := p.buildInactivePeriodSection(focusStart, focusEnd)
