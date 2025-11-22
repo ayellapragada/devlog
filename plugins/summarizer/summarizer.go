@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -320,6 +321,72 @@ func (p *Plugin) filterEvents(evts []*events.Event) []*events.Event {
 	return filtered
 }
 
+type repoActivity struct {
+	Repo         string
+	Branch       string
+	EventCount   int
+	CriticalHigh int
+	MediumLow    int
+}
+
+func extractRepoActivity(evts []*events.Event) []repoActivity {
+	type key struct {
+		repo   string
+		branch string
+	}
+
+	activityMap := make(map[key]*repoActivity)
+
+	sourcePriority := map[string]int{
+		"claude":    3,
+		"github":    2,
+		"git":       1,
+		"kubectl":   1,
+		"shell":     0,
+		"clipboard": 0,
+	}
+
+	for _, evt := range evts {
+		if evt.Repo == "" {
+			continue
+		}
+
+		k := key{repo: evt.Repo, branch: evt.Branch}
+		if activityMap[k] == nil {
+			activityMap[k] = &repoActivity{
+				Repo:   evt.Repo,
+				Branch: evt.Branch,
+			}
+		}
+
+		activityMap[k].EventCount++
+
+		priority := sourcePriority[evt.Source]
+		if priority >= 2 {
+			activityMap[k].CriticalHigh++
+		} else {
+			activityMap[k].MediumLow++
+		}
+	}
+
+	activities := make([]repoActivity, 0, len(activityMap))
+	for _, activity := range activityMap {
+		activities = append(activities, *activity)
+	}
+
+	sort.Slice(activities, func(i, j int) bool {
+		if activities[i].CriticalHigh != activities[j].CriticalHigh {
+			return activities[i].CriticalHigh > activities[j].CriticalHigh
+		}
+		if activities[i].MediumLow != activities[j].MediumLow {
+			return activities[i].MediumLow > activities[j].MediumLow
+		}
+		return activities[i].EventCount > activities[j].EventCount
+	})
+
+	return activities
+}
+
 func (p *Plugin) buildPrompt(contextEvents, focusEvents []*events.Event) string {
 	return buildPrompt(contextEvents, focusEvents, p.formatEvent)
 }
@@ -327,6 +394,21 @@ func (p *Plugin) buildPrompt(contextEvents, focusEvents []*events.Event) string 
 func buildPrompt(contextEvents, focusEvents []*events.Event, formatter func(*events.Event) string) string {
 	contextBySource := groupEventsBySource(contextEvents)
 	focusBySource := groupEventsBySource(focusEvents)
+
+	repoActivities := extractRepoActivity(focusEvents)
+	repoSection := ""
+	if len(repoActivities) > 0 {
+		repoSection = "\nACTIVE REPOSITORIES IN FOCUS PERIOD:\n"
+		for _, activity := range repoActivities {
+			branchInfo := ""
+			if activity.Branch != "" {
+				branchInfo = fmt.Sprintf(" (%s)", activity.Branch)
+			}
+			repoSection += fmt.Sprintf("- %s%s: %d events (%d CRITICAL/HIGH, %d MEDIUM/LOW)\n",
+				activity.Repo, branchInfo, activity.EventCount, activity.CriticalHigh, activity.MediumLow)
+		}
+		repoSection += "\n"
+	}
 
 	prompt := `You are generating a factual development summary. This is a deterministic
 transformation of the provided events, not a creative task. You must ONLY use
@@ -343,7 +425,7 @@ Events are grouped by source category:
 - HIGH: GitHub commits, PR activity
 - MEDIUM: git commands, kubectl operations
 - LOW: shell commands, clipboard activity, misc background
-
+` + repoSection + `
 CONTEXT EVENTS (read for background only; DO NOT summarize these):
 ` + formattedBySource(contextBySource, formatter) + `
 
@@ -358,13 +440,16 @@ Your output has exactly two parts:
 PART 1 — CONTEXT LINE (one line, max 80 chars)
 
 Format:
-"Working on: <repo> (<branch>)"
+Single repo: "Working on: <repo> (<branch>)"
+Multiple repos (2-3): "Working on: <repo1> (<branch1>), <repo2> (<branch2>)"
+Many repos (4+): "Working on: <repo1> (<branch1>) + N other repos"
 
 Rules:
-- Extract repo and branch ONLY from focus events
-- If multiple repos: use the one with most CRITICAL/HIGH activity
+- Use the ACTIVE REPOSITORIES section above for repo/branch information
+- List repos in priority order (already sorted by CRITICAL/HIGH activity)
 - If no repo/branch: use "Working on: <primary-topic>"
 - Never use asterisks or markdown formatting in the context line
+- Keep concise: if listing multiple repos would exceed 80 chars, use "+ N other repos" format
 ----------------------------------------------------------------
 
 PART 2 — ACTIVITY SUMMARY (2–4 bullet points)
