@@ -25,21 +25,9 @@ func SummarizerCommand() *cli.Command {
 		Subcommands: []*cli.Command{
 			{
 				Name:      "backfill",
-				Usage:     "Backfill summaries for a specific time range",
-				ArgsUsage: " ",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "start",
-						Usage: "Start time (format: 2006-01-02 15:04 or 15:04 for today)",
-						Value: "00:00",
-					},
-					&cli.StringFlag{
-						Name:  "end",
-						Usage: "End time (format: 2006-01-02 15:04 or 15:04 for today, or 'now')",
-						Value: "now",
-					},
-				},
-				Action: backfillAction,
+				Usage:     "Backfill summaries for a specific day (defaults to today)",
+				ArgsUsage: "[day]",
+				Action:    backfillAction,
 			},
 			{
 				Name:   "open",
@@ -51,51 +39,55 @@ func SummarizerCommand() *cli.Command {
 }
 
 func backfillAction(c *cli.Context) error {
-	startStr := c.String("start")
-	endStr := c.String("end")
+	dayStr := "today"
+	if c.Args().Present() {
+		dayStr = c.Args().First()
+	}
 
-	start, err := parseTimeForBackfill(startStr)
+	day, err := parseDay(dayStr)
 	if err != nil {
-		return fmt.Errorf("parse start time: %w", err)
+		return fmt.Errorf("parse day: %w", err)
 	}
 
-	end, err := parseTimeForBackfill(endStr)
+	dataDir, err := config.DataDir()
 	if err != nil {
-		return fmt.Errorf("parse end time: %w", err)
+		return fmt.Errorf("get data directory: %w", err)
 	}
 
-	if end.Before(start) {
-		return fmt.Errorf("end time must be after start time")
-	}
+	summariesDir := filepath.Join(dataDir, "summaries")
+	filename := fmt.Sprintf("summary_%s.md", day.Format("2006-01-02"))
+	summaryPath := filepath.Join(summariesDir, filename)
 
-	return backfillSummarizer(start, end)
-}
-
-func parseTimeForBackfill(timeStr string) (time.Time, error) {
-	if timeStr == "now" {
-		return time.Now(), nil
-	}
-
-	formats := []string{
-		"2006-01-02 15:04",
-		"15:04",
-	}
-
-	for _, format := range formats {
-		t, err := time.Parse(format, timeStr)
-		if err == nil {
-			if format == "15:04" {
-				now := time.Now()
-				t = time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
-			}
-			return t, nil
+	if _, err := os.Stat(summaryPath); err == nil {
+		fmt.Printf("Deleting existing summary: %s\n", filename)
+		if err := os.Remove(summaryPath); err != nil {
+			return fmt.Errorf("delete existing summary: %w", err)
 		}
 	}
 
-	return time.Time{}, fmt.Errorf("invalid time format: %s (use '2006-01-02 15:04' or '15:04' or 'now')", timeStr)
+	return backfillSummarizer(day, day.AddDate(0, 0, 1), dataDir)
 }
 
-func backfillSummarizer(start, end time.Time) error {
+func parseDay(dayStr string) (time.Time, error) {
+	now := time.Now()
+
+	switch dayStr {
+	case "today":
+		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()), nil
+	case "yesterday":
+		yesterday := now.AddDate(0, 0, -1)
+		return time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, now.Location()), nil
+	}
+
+	t, err := time.Parse("2006-01-02", dayStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid day format: %s (use '2006-01-02', 'today', or 'yesterday')", dayStr)
+	}
+
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, now.Location()), nil
+}
+
+func backfillSummarizer(start, end time.Time, dataDir string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -108,11 +100,6 @@ func backfillSummarizer(start, end time.Time) error {
 	pluginCfg, ok := cfg.GetPluginConfig("summarizer")
 	if !ok {
 		return fmt.Errorf("summarizer plugin config not found")
-	}
-
-	dataDir, err := config.DataDir()
-	if err != nil {
-		return fmt.Errorf("get data directory: %w", err)
 	}
 
 	dbPath := filepath.Join(dataDir, "events.db")
@@ -197,8 +184,7 @@ func backfillSummarizer(start, end time.Time) error {
 		}
 	}
 
-	fmt.Printf("Backfilling summaries:\n")
-	fmt.Printf("  Time range: %s to %s\n", start.Format("2006-01-02 15:04"), end.Format("2006-01-02 15:04"))
+	fmt.Printf("Backfilling summaries for %s:\n", start.Format("2006-01-02"))
 	fmt.Printf("  Interval: %d minutes\n", intervalMins)
 	fmt.Printf("  Context window: %d minutes\n", contextWindowMins)
 	fmt.Printf("  Provider: %s\n", provider)
@@ -209,7 +195,6 @@ func backfillSummarizer(start, end time.Time) error {
 
 	current := start
 	count := 0
-	skipped := 0
 
 	for current.Before(end) {
 		focusEnd := current.Add(interval)
@@ -220,8 +205,10 @@ func backfillSummarizer(start, end time.Time) error {
 		fmt.Printf("[%s - %s] ", current.Format("15:04"), focusEnd.Format("15:04"))
 
 		plugin := summarizer.NewForPoll(llmClient, store, interval, contextWindow, excludeSources)
+		ctx := context.Background()
+		contextStart := current.Add(-contextWindow)
 
-		if err := generateSummaryForBackfill(plugin, store, current, focusEnd, contextWindow); err != nil {
+		if err := plugin.GenerateSummaryForPeriod(ctx, current, focusEnd, contextStart); err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
 			return err
 		}
@@ -231,25 +218,8 @@ func backfillSummarizer(start, end time.Time) error {
 		current = focusEnd
 	}
 
-	fmt.Println()
-	if skipped > 0 {
-		fmt.Printf("✓ Generated %d summaries (%d periods had no events)\n", count, skipped)
-	} else {
-		fmt.Printf("✓ Generated %d summaries\n", count)
-	}
-
-	summariesDir := filepath.Join(dataDir, "summaries")
-	filename := fmt.Sprintf("summary_%s.md", start.Format("2006-01-02"))
-	path := filepath.Join(summariesDir, filename)
-	fmt.Printf("✓ Summaries saved to %s\n", path)
-
+	fmt.Printf("\n✓ Generated %d summaries for %s\n", count, start.Format("2006-01-02"))
 	return nil
-}
-
-func generateSummaryForBackfill(plugin *summarizer.Plugin, store *storage.Storage, focusStart, focusEnd time.Time, contextWindow time.Duration) error {
-	ctx := context.Background()
-	contextStart := focusStart.Add(-contextWindow)
-	return plugin.GenerateSummaryForPeriod(ctx, focusStart, focusEnd, contextStart)
 }
 
 func openAction(c *cli.Context) error {
