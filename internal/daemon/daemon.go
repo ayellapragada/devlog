@@ -67,9 +67,19 @@ type Daemon struct {
 func New(cfg *config.Config, store *storage.Storage) *Daemon {
 	logDir, err := config.DataDir()
 	var log *logger.Logger
+
+	isBackground := os.Getenv("DEVLOG_DAEMON_SUBPROCESS") == "1"
+
 	if err == nil {
-		fileLog, err := logger.DefaultFile(logDir)
-		if err == nil {
+		var fileLog *logger.Logger
+		var logErr error
+		if isBackground {
+			fileLog, logErr = logger.DefaultFileOnly(logDir)
+		} else {
+			fileLog, logErr = logger.DefaultDual(logDir)
+		}
+
+		if logErr == nil {
 			log = fileLog
 		} else {
 			log = logger.Default()
@@ -584,27 +594,11 @@ func SpawnBackground() *exec.Cmd {
 		executable = "devlog"
 	}
 
-	dataDir, _ := config.DataDir()
-	logPath := filepath.Join(dataDir, "daemon.log")
-
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Cannot open daemon.log: %v\n", err)
-		logFile = nil
-	}
-
 	cmd := exec.Command(executable, "daemon", "start")
 	cmd.Env = append(os.Environ(), "DEVLOG_DAEMON_SUBPROCESS=1")
 
-	if logFile != nil {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
-		cmd.ExtraFiles = []*os.File{logFile}
-	} else {
-		cmd.Stdout = nil
-		cmd.Stderr = nil
-	}
-
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 	cmd.Stdin = nil
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid: true,
