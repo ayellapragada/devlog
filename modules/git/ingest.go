@@ -3,6 +3,7 @@ package git
 import (
 	"flag"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"devlog/internal/events"
@@ -145,7 +146,7 @@ func (h *IngestHandler) ingestEvent(args []string) error {
 	}
 
 	event := events.NewEvent(string(events.SourceGit), typeConstant)
-	event.Repo = *repo
+	event.Repo = filepath.Base(*repo)
 	event.Branch = *branch
 
 	if *hash != "" {

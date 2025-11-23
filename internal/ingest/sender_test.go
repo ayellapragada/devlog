@@ -25,8 +25,9 @@ func TestFindGitRepo(t *testing.T) {
 			},
 			expectError: false,
 			checkResult: func(t *testing.T, result, tempDir string) {
-				if result != tempDir {
-					t.Errorf("expected %q, got %q", tempDir, result)
+				expected := filepath.Base(tempDir)
+				if result != expected {
+					t.Errorf("expected %q, got %q", expected, result)
 				}
 			},
 		},
@@ -46,7 +47,8 @@ func TestFindGitRepo(t *testing.T) {
 			},
 			expectError: false,
 			checkResult: func(t *testing.T, result, tempDir string) {
-				expected := filepath.Dir(filepath.Dir(tempDir))
+				repoRoot := filepath.Dir(filepath.Dir(tempDir))
+				expected := filepath.Base(repoRoot)
 				if result != expected {
 					t.Errorf("expected %q, got %q", expected, result)
 				}
@@ -82,8 +84,9 @@ func TestFindGitRepo(t *testing.T) {
 			},
 			expectError: false,
 			checkResult: func(t *testing.T, result, tempDir string) {
-				if result != tempDir {
-					t.Errorf("expected %q (inner repo), got %q", tempDir, result)
+				expected := filepath.Base(tempDir)
+				if result != expected {
+					t.Errorf("expected %q (inner repo), got %q", expected, result)
 				}
 			},
 		},

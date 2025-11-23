@@ -27,9 +27,9 @@ func TestFindGitRepo(t *testing.T) {
 			t.Fatalf("Expected to find git repo, got error: %v", err)
 		}
 
-		expectedPath := filepath.Join(tmpDir, "project")
-		if result != expectedPath {
-			t.Errorf("Expected %s, got %s", expectedPath, result)
+		expected := "project"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
 		}
 	})
 
@@ -39,9 +39,9 @@ func TestFindGitRepo(t *testing.T) {
 			t.Fatalf("Expected to find git repo, got error: %v", err)
 		}
 
-		expectedPath := filepath.Join(tmpDir, "project")
-		if result != expectedPath {
-			t.Errorf("Expected %s, got %s", expectedPath, result)
+		expected := "project"
+		if result != expected {
+			t.Errorf("Expected %s, got %s", expected, result)
 		}
 	})
 
@@ -91,8 +91,9 @@ func TestFindGitRepoNestedRepos(t *testing.T) {
 			t.Fatalf("Expected to find git repo, got error: %v", err)
 		}
 
-		if result != innerRepoDir {
-			t.Errorf("Expected %s, got %s (should find nearest repo)", innerRepoDir, result)
+		expected := "inner"
+		if result != expected {
+			t.Errorf("Expected %s, got %s (should find nearest repo)", expected, result)
 		}
 	})
 }

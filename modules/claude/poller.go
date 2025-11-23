@@ -157,7 +157,9 @@ func (p *Poller) extractEvents(conv ParsedConversation) []*events.Event {
 		event := events.NewEvent("claude", "conversation")
 		event.ID = conv.SessionID
 		event.Timestamp = conv.Timestamp.Format(time.RFC3339)
-		event.Repo = conv.CWD
+		if conv.CWD != "" {
+			event.Repo = filepath.Base(conv.CWD)
+		}
 		event.Branch = conv.GitBranch
 
 		summary := conv.UserMessage
@@ -183,7 +185,9 @@ func (p *Poller) extractEvents(conv ParsedConversation) []*events.Event {
 			event := events.NewEvent("claude", "command")
 			event.ID = generateID(conv.SessionID, cmd.Command, cmd.Timestamp.String())
 			event.Timestamp = cmd.Timestamp.Format(time.RFC3339)
-			event.Repo = conv.CWD
+			if conv.CWD != "" {
+				event.Repo = filepath.Base(conv.CWD)
+			}
 			event.Branch = conv.GitBranch
 
 			event.Payload = map[string]interface{}{
@@ -203,7 +207,9 @@ func (p *Poller) extractEvents(conv ParsedConversation) []*events.Event {
 			event := events.NewEvent("claude", "file_edit")
 			event.ID = generateID(conv.SessionID, edit.FilePath, edit.Timestamp.String())
 			event.Timestamp = edit.Timestamp.Format(time.RFC3339)
-			event.Repo = conv.CWD
+			if conv.CWD != "" {
+				event.Repo = filepath.Base(conv.CWD)
+			}
 			event.Branch = conv.GitBranch
 
 			event.Payload = map[string]interface{}{

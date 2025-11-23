@@ -57,6 +57,22 @@ func FindGitRepo(path string) (string, error) {
 	for {
 		gitPath := filepath.Join(current, ".git")
 		if _, err := os.Stat(gitPath); err == nil {
+			return filepath.Base(current), nil
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", fmt.Errorf("not a git repository")
+		}
+		current = parent
+	}
+}
+
+func findGitRepoPath(path string) (string, error) {
+	current := path
+	for {
+		gitPath := filepath.Join(current, ".git")
+		if _, err := os.Stat(gitPath); err == nil {
 			return current, nil
 		}
 
@@ -69,7 +85,7 @@ func FindGitRepo(path string) (string, error) {
 }
 
 func FindGitBranch(path string) (string, error) {
-	repoPath, err := FindGitRepo(path)
+	repoPath, err := findGitRepoPath(path)
 	if err != nil {
 		return "", err
 	}
