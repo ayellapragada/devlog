@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"devlog/internal/config"
 	"devlog/internal/install"
 	"devlog/internal/modules"
 )
@@ -73,6 +74,15 @@ func (m *Module) Install(ctx *install.Context) error {
 
 	ctx.Log("✓ Installed shared library to %s", commonLibPath)
 	ctx.Log("✓ Installed git wrapper to %s", wrapperPath)
+
+	cfg, err := config.Load()
+	if err == nil && cfg.IsModuleEnabled("shell") {
+		cfg.AddToShellIgnoreList("git")
+		if err := cfg.Save(); err == nil {
+			ctx.Log("✓ Added 'git' to shell module ignore list")
+		}
+	}
+
 	ctx.Log("")
 	ctx.Log("All git operations (commits, pushes, pulls, merges, etc.) will now be tracked.")
 	ctx.Log("")
@@ -109,6 +119,14 @@ func (m *Module) Uninstall(ctx *install.Context) error {
 			ctx.Log("✓ Removed git wrapper from %s", wrapperPath)
 		} else {
 			ctx.Log("Warning: git wrapper at %s doesn't match devlog's wrapper, skipping removal", wrapperPath)
+		}
+	}
+
+	cfg, err := config.Load()
+	if err == nil && cfg.IsModuleEnabled("shell") {
+		cfg.RemoveFromShellIgnoreList("git")
+		if err := cfg.Save(); err == nil {
+			ctx.Log("✓ Removed 'git' from shell module ignore list")
 		}
 	}
 

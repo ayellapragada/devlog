@@ -1,15 +1,22 @@
 {
   "permissions": {
     "allow": [
+      "Bash(cat:*)",
       "Bash(sed:*)",
+      "Bash(chmod:*)",
       "Bash(go build:*)",
-      "Bash(./devlog:*)",
-      "Bash(./devlog help)",
       "Bash(go list:*)",
       "Bash(go test:*)",
-      "Bash(chmod:*)",
-      "Bash(./scripts/benchmark_summarizer.sh:*)",
-      "Bash(./bin/devlog summarizer backfill:*)"
+      "Bash(./bin/devlog summarizer backfill:*)",
+      "Bash(devlog status:*)",
+      "Bash(devlog daemon:*)",
+      "Bash(devlog module:*)",
+      "Bash(git commit:*)",
+      "Bash(go run:*)",
+      "Bash(./devlog:*)",
+      "Bash(./devlog daemon:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)"
     ],
     "deny": [],
     "ask": []

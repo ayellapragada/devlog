@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 
+	"devlog/internal/config"
 	"devlog/internal/events"
 	"devlog/internal/ingest"
 
@@ -56,6 +57,13 @@ func (h *IngestHandler) ingestEvent(args []string) error {
 
 	if *command == "" {
 		return fmt.Errorf("--command is required")
+	}
+
+	cfg, err := config.Load()
+	if err == nil {
+		if !cfg.ShouldCaptureCommand(*command) {
+			return nil
+		}
 	}
 
 	event := events.NewEvent(string(events.SourceShell), string(events.TypeCommand))

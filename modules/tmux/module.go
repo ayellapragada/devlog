@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"devlog/internal/config"
 	"devlog/internal/install"
 	"devlog/internal/modules"
 )
@@ -69,6 +70,14 @@ func (m *Module) Install(ctx *install.Context) error {
 		return err
 	}
 
+	cfg, err := config.Load()
+	if err == nil && cfg.IsModuleEnabled("shell") {
+		cfg.AddToShellIgnoreList("tmux")
+		if err := cfg.Save(); err == nil {
+			ctx.Log("✓ Added 'tmux' to shell module ignore list")
+		}
+	}
+
 	if isTmuxRunning() {
 		ctx.Log("")
 		ctx.Log("Reloading tmux configuration...")
@@ -100,6 +109,14 @@ func (m *Module) Uninstall(ctx *install.Context) error {
 
 	tmuxConfPath := filepath.Join(ctx.HomeDir, ".tmux.conf")
 	removeFromTmuxConf(ctx, tmuxConfPath, hooksPath)
+
+	cfg, err := config.Load()
+	if err == nil && cfg.IsModuleEnabled("shell") {
+		cfg.RemoveFromShellIgnoreList("tmux")
+		if err := cfg.Save(); err == nil {
+			ctx.Log("✓ Removed 'tmux' from shell module ignore list")
+		}
+	}
 
 	if isTmuxRunning() {
 		ctx.Log("")

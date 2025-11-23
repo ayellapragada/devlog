@@ -171,6 +171,7 @@ func (d *Daemon) startPlugin(parentCtx context.Context, plugin plugins.Plugin, p
 		defer d.pluginWG.Done()
 
 		metrics.GlobalSnapshot.RecordPluginStart(pluginName)
+		d.logger.Info("plugin started", slog.String("plugin", pluginName))
 
 		if err := plugin.Start(pluginConfigCtx); err != nil {
 			metrics.GlobalSnapshot.RecordPluginError(pluginName, err)

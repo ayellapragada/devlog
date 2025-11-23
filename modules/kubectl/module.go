@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"devlog/internal/config"
 	"devlog/internal/install"
 	"devlog/internal/modules"
 )
@@ -88,6 +89,15 @@ func (m *Module) Install(ctx *install.Context) error {
 	ctx.Log("✓ Installed shared library to %s", commonLibPath)
 	ctx.Log("✓ Installed kubectl wrapper to %s", wrapperPath)
 	ctx.Log("✓ Installed k alias wrapper to %s", kWrapperPath)
+
+	cfg, err := config.Load()
+	if err == nil && cfg.IsModuleEnabled("shell") {
+		cfg.AddToShellIgnoreList("kubectl", "k")
+		if err := cfg.Save(); err == nil {
+			ctx.Log("✓ Added 'kubectl' and 'k' to shell module ignore list")
+		}
+	}
+
 	ctx.Log("")
 	ctx.Log("All kubectl/k operations (apply, delete, get, logs, exec, debug, etc.) will now be tracked.")
 	ctx.Log("")
@@ -137,6 +147,14 @@ func (m *Module) Uninstall(ctx *install.Context) error {
 			ctx.Log("✓ Removed k alias wrapper from %s", kWrapperPath)
 		} else {
 			ctx.Log("Warning: k wrapper at %s doesn't match devlog's wrapper, skipping removal", kWrapperPath)
+		}
+	}
+
+	cfg, err := config.Load()
+	if err == nil && cfg.IsModuleEnabled("shell") {
+		cfg.RemoveFromShellIgnoreList("kubectl", "k")
+		if err := cfg.Save(); err == nil {
+			ctx.Log("✓ Removed 'kubectl' and 'k' from shell module ignore list")
 		}
 	}
 

@@ -278,6 +278,66 @@ func (c *Config) ShouldCaptureCommand(command string) bool {
 	return true
 }
 
+func (c *Config) AddToShellIgnoreList(commands ...string) {
+	shellCfg, ok := c.GetModuleConfig("shell")
+	if !ok {
+		shellCfg = make(map[string]interface{})
+	}
+
+	ignoreList := []string{}
+	if existingList, ok := shellCfg["ignore_list"].([]interface{}); ok {
+		for _, item := range existingList {
+			if cmd, ok := item.(string); ok {
+				ignoreList = append(ignoreList, cmd)
+			}
+		}
+	}
+
+	for _, cmd := range commands {
+		found := false
+		for _, existing := range ignoreList {
+			if existing == cmd {
+				found = true
+				break
+			}
+		}
+		if !found {
+			ignoreList = append(ignoreList, cmd)
+		}
+	}
+
+	shellCfg["ignore_list"] = ignoreList
+	c.SetModuleConfig("shell", shellCfg)
+}
+
+func (c *Config) RemoveFromShellIgnoreList(commands ...string) {
+	shellCfg, ok := c.GetModuleConfig("shell")
+	if !ok {
+		return
+	}
+
+	ignoreList := []string{}
+	if existingList, ok := shellCfg["ignore_list"].([]interface{}); ok {
+		for _, item := range existingList {
+			if cmd, ok := item.(string); ok {
+				shouldRemove := false
+				for _, toRemove := range commands {
+					if cmd == toRemove {
+						shouldRemove = true
+						break
+					}
+				}
+				if !shouldRemove {
+					ignoreList = append(ignoreList, cmd)
+				}
+			}
+		}
+	}
+
+	shellCfg["ignore_list"] = ignoreList
+	c.SetModuleConfig("shell", shellCfg)
+}
+
 func InitConfig() error {
 	configDir, err := ConfigDir()
 	if err != nil {
