@@ -111,10 +111,17 @@ __devlog_capture_kubectl_event() {
     local namespace="$3"
     shift 3
 
+    local workdir="$PWD"
+    local extra_args=()
+    if [ -n "$workdir" ]; then
+        extra_args+=(--workdir="$workdir")
+    fi
+
     "$DEVLOG_BIN_PATH" ingest kubectl \
         --operation="$operation" \
         --context="$context" \
         --cluster="$KUBECTL_CLUSTER" \
         --namespace="$namespace" \
+        "${extra_args[@]}" \
         "$@" &> /dev/null
 }

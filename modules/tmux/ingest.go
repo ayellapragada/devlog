@@ -24,6 +24,7 @@ func (h *IngestHandler) CLICommand() *cli.Command {
 			&cli.StringFlag{Name: "window-id", Usage: "Window ID"},
 			&cli.StringFlag{Name: "pane", Usage: "Pane index"},
 			&cli.StringFlag{Name: "pane-id", Usage: "Pane ID"},
+			&cli.StringFlag{Name: "pane-path", Usage: "Pane current path"},
 			&cli.StringFlag{Name: "client", Usage: "Client name"},
 		},
 		Action: h.handle,
@@ -50,6 +51,9 @@ func (h *IngestHandler) handle(c *cli.Context) error {
 	if v := c.String("pane-id"); v != "" {
 		args = append(args, "--pane-id", v)
 	}
+	if v := c.String("pane-path"); v != "" {
+		args = append(args, "--pane-path", v)
+	}
 	if v := c.String("client"); v != "" {
 		args = append(args, "--client", v)
 	}
@@ -65,6 +69,7 @@ func (h *IngestHandler) ingestEvent(args []string) error {
 	windowID := fs.String("window-id", "", "Window ID")
 	pane := fs.String("pane", "", "Pane index")
 	paneID := fs.String("pane-id", "", "Pane ID")
+	panePath := fs.String("pane-path", "", "Pane current path")
 	client := fs.String("client", "", "Client name")
 
 	fs.Parse(args)
@@ -113,6 +118,16 @@ func (h *IngestHandler) ingestEvent(args []string) error {
 	}
 	if *client != "" {
 		event.Payload["client"] = *client
+	}
+
+	if *panePath != "" {
+		event.Payload["pane_path"] = *panePath
+		if repoPath, err := ingest.FindGitRepo(*panePath); err == nil {
+			event.Repo = repoPath
+			if branch, err := ingest.FindGitBranch(*panePath); err == nil {
+				event.Branch = branch
+			}
+		}
 	}
 
 	return ingest.SendEvent(event)

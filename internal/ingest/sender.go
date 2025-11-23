@@ -67,3 +67,27 @@ func FindGitRepo(path string) (string, error) {
 		current = parent
 	}
 }
+
+func FindGitBranch(path string) (string, error) {
+	repoPath, err := FindGitRepo(path)
+	if err != nil {
+		return "", err
+	}
+
+	headFile := filepath.Join(repoPath, ".git", "HEAD")
+	content, err := os.ReadFile(headFile)
+	if err != nil {
+		return "", fmt.Errorf("read HEAD file: %w", err)
+	}
+
+	head := string(content)
+	if len(head) > 16 && head[:16] == "ref: refs/heads/" {
+		return head[16 : len(head)-1], nil
+	}
+
+	if len(head) >= 7 {
+		return head[:7], nil
+	}
+
+	return "", fmt.Errorf("invalid HEAD format")
+}

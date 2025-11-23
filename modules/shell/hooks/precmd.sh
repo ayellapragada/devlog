@@ -24,13 +24,23 @@ __devlog_capture_command() {
     fi
 
     local workdir="$PWD"
+    local branch=""
+    if git rev-parse --git-dir &> /dev/null; then
+        branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+    fi
 
-    "$devlog_bin" ingest shell-command \
-        --command="$DEVLOG_CMD" \
-        --exit-code="$exit_code" \
-        --workdir="$workdir" \
-        --duration="$duration" \
-        &> /dev/null &
+    local args=(
+        --command="$DEVLOG_CMD"
+        --exit-code="$exit_code"
+        --workdir="$workdir"
+        --duration="$duration"
+    )
+
+    if [ -n "$branch" ]; then
+        args+=(--branch="$branch")
+    fi
+
+    "$devlog_bin" ingest shell-command "${args[@]}" &> /dev/null &
 
     unset DEVLOG_CMD
     unset DEVLOG_CMD_START

@@ -24,6 +24,7 @@ func (h *IngestHandler) CLICommand() *cli.Command {
 			&cli.StringFlag{Name: "resource-type", Usage: "Resource type (pod, deployment, service, etc.)"},
 			&cli.StringFlag{Name: "resource-names", Usage: "Resource names"},
 			&cli.StringFlag{Name: "resource-count", Usage: "Number of resources affected"},
+			&cli.StringFlag{Name: "workdir", Usage: "Working directory"},
 			&cli.IntFlag{Name: "exit-code", Usage: "Command exit code", Value: 0},
 		},
 		Action: h.handle,
@@ -48,6 +49,9 @@ func (h *IngestHandler) handle(c *cli.Context) error {
 	if v := c.String("resource-count"); v != "" {
 		args = append(args, "--resource-count", v)
 	}
+	if v := c.String("workdir"); v != "" {
+		args = append(args, "--workdir", v)
+	}
 	if c.IsSet("exit-code") {
 		args = append(args, "--exit-code", c.String("exit-code"))
 	}
@@ -63,6 +67,7 @@ func (h *IngestHandler) ingestEvent(args []string) error {
 	resourceType := fs.String("resource-type", "", "Resource type")
 	resourceNames := fs.String("resource-names", "", "Resource names")
 	resourceCount := fs.String("resource-count", "", "Number of resources affected")
+	workdir := fs.String("workdir", "", "Working directory")
 	exitCode := fs.Int("exit-code", 0, "Command exit code")
 
 	fs.Parse(args)
@@ -113,6 +118,16 @@ func (h *IngestHandler) ingestEvent(args []string) error {
 	}
 	if *resourceCount != "" {
 		event.Payload["resource_count"] = *resourceCount
+	}
+
+	if *workdir != "" {
+		event.Payload["workdir"] = *workdir
+		if repoPath, err := ingest.FindGitRepo(*workdir); err == nil {
+			event.Repo = repoPath
+			if branch, err := ingest.FindGitBranch(*workdir); err == nil {
+				event.Branch = branch
+			}
+		}
 	}
 
 	return ingest.SendEvent(event)

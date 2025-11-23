@@ -74,7 +74,7 @@ func (p *Plugin) DefaultConfig() interface{} {
 	return &Config{
 		IntervalMinutes:      30,
 		ContextWindowMinutes: 60,
-		ExcludeSources:       []string{"clipboard"},
+		ExcludeSources:       []string{"clipboard", "wisprflow"},
 	}
 }
 

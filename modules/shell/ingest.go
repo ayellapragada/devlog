@@ -20,6 +20,7 @@ func (h *IngestHandler) CLICommand() *cli.Command {
 			&cli.StringFlag{Name: "command", Usage: "The shell command", Required: true},
 			&cli.IntFlag{Name: "exit-code", Usage: "Command exit code", Value: 0},
 			&cli.StringFlag{Name: "workdir", Usage: "Working directory"},
+			&cli.StringFlag{Name: "branch", Usage: "Git branch"},
 			&cli.Int64Flag{Name: "duration", Usage: "Command duration in milliseconds"},
 		},
 		Action: h.handle,
@@ -34,6 +35,9 @@ func (h *IngestHandler) handle(c *cli.Context) error {
 	if v := c.String("workdir"); v != "" {
 		args = append(args, "--workdir", v)
 	}
+	if v := c.String("branch"); v != "" {
+		args = append(args, "--branch", v)
+	}
 	if c.IsSet("duration") {
 		args = append(args, "--duration", c.String("duration"))
 	}
@@ -45,6 +49,7 @@ func (h *IngestHandler) ingestEvent(args []string) error {
 	command := fs.String("command", "", "The shell command")
 	exitCode := fs.Int("exit-code", 0, "Command exit code")
 	workdir := fs.String("workdir", "", "Working directory")
+	branch := fs.String("branch", "", "Git branch")
 	duration := fs.Int64("duration", 0, "Command duration in milliseconds")
 
 	fs.Parse(args)
@@ -62,6 +67,10 @@ func (h *IngestHandler) ingestEvent(args []string) error {
 		if repoPath, err := ingest.FindGitRepo(*workdir); err == nil {
 			event.Repo = repoPath
 		}
+	}
+
+	if *branch != "" {
+		event.Branch = *branch
 	}
 
 	if *duration > 0 {
