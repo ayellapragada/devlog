@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 const (
@@ -178,6 +179,7 @@ type compactHandler struct {
 	handler slog.Handler
 	writer  io.Writer
 	level   slog.Level
+	mu      sync.Mutex
 }
 
 func newCompactHandler(w io.Writer, level slog.Level) *compactHandler {
@@ -193,6 +195,9 @@ func (h *compactHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h *compactHandler) Handle(ctx context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	timeStr := r.Time.Format("15:04:05")
 	level := r.Level.String()
 	msg := r.Message
