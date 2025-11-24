@@ -1,7 +1,7 @@
-> ⚠️ **An Important Note On This Project**
->
-> This isn't necessarily a "production ready" tool yet.  
-> DevLog is actively used *by me* every day, but it is still evolving, still rough in places, and still missing features.  
+> 🌱 **A Quick Heads Up**
+> 
+> DevLog is actively used *by me* every day, but it is still early, and still missing features.  
+> Expect a few rough edges and steady improvements, feedback is very welcome!
 > 
 > I've already found a lot of value in having it, but YMMV.
 
@@ -151,12 +151,13 @@ Summaries are then automatically generated and saved to `~/.config/devlog/summar
 
 DevLog uses a **modular architecture**.
 
-There are core parts: The CLI, Daemon, and Web server.
+There are three core parts: The CLI, the Daemon, and the analytics front end.
 
-By itself those provide no functionality except a foundation.
+By itself those provide no functionality except a foundation for plugins and modules to build off of.
 
-After that, anything you want needs to be explicitly opted into and enabled.
+After that, anything you want needs to be explicitly opted into, enabled, and configured.
 
+There are reasonable defaults throughout, but just letting you know.
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        DevLog Architecture                      │
@@ -214,6 +215,7 @@ Poll-based (periodic checks) examples:
 - **claude** - Reads Claude Code conversation history
 
 #### 🔌 **Plugins** - Everything Else
+
 Event processing examples:
 - **summarizer** - Automated summary generation
 
@@ -222,7 +224,7 @@ Event processing examples:
 - Manages module pollers and plugin lifecycle
 - Graceful shutdown and reload support
 
-- #### 🌐 **Web**
+#### 🌐 **Web**
 - Also HTTP server on localhost:8573
 - Provides dashboard for high level overview
 
