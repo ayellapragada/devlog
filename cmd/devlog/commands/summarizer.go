@@ -65,7 +65,12 @@ func backfillAction(c *cli.Context) error {
 		}
 	}
 
-	return backfillSummarizer(day, day.AddDate(0, 0, 1), dataDir)
+	endTime := day.AddDate(0, 0, 1)
+	if dayStr == "today" {
+		endTime = time.Now()
+	}
+
+	return backfillSummarizer(day, endTime, dataDir)
 }
 
 func parseDay(dayStr string) (time.Time, error) {
@@ -109,23 +114,23 @@ func backfillSummarizer(start, end time.Time, dataDir string) error {
 	}
 	defer store.Close()
 
-	intervalMins := 30
-	if val, ok := pluginCfg["interval_minutes"]; ok {
+	intervalSecs := 1800
+	if val, ok := pluginCfg["interval_seconds"]; ok {
 		switch v := val.(type) {
 		case float64:
-			intervalMins = int(v)
+			intervalSecs = int(v)
 		case int:
-			intervalMins = v
+			intervalSecs = v
 		}
 	}
 
-	contextWindowMins := 60
-	if val, ok := pluginCfg["context_window_minutes"]; ok {
+	contextWindowSecs := 3600
+	if val, ok := pluginCfg["context_window_seconds"]; ok {
 		switch v := val.(type) {
 		case float64:
-			contextWindowMins = int(v)
+			contextWindowSecs = int(v)
 		case int:
-			contextWindowMins = v
+			contextWindowSecs = v
 		}
 	}
 
@@ -170,8 +175,8 @@ func backfillSummarizer(start, end time.Time, dataDir string) error {
 		return fmt.Errorf("create LLM client: %w", err)
 	}
 
-	interval := time.Duration(intervalMins) * time.Minute
-	contextWindow := time.Duration(contextWindowMins) * time.Minute
+	interval := time.Duration(intervalSecs) * time.Second
+	contextWindow := time.Duration(contextWindowSecs) * time.Second
 
 	var excludeSources []string
 	if val, ok := pluginCfg["exclude_sources"]; ok {
@@ -185,8 +190,8 @@ func backfillSummarizer(start, end time.Time, dataDir string) error {
 	}
 
 	fmt.Printf("Backfilling summaries for %s:\n", start.Format("2006-01-02"))
-	fmt.Printf("  Interval: %d minutes\n", intervalMins)
-	fmt.Printf("  Context window: %d minutes\n", contextWindowMins)
+	fmt.Printf("  Interval: %d seconds (%.0f minutes)\n", intervalSecs, float64(intervalSecs)/60)
+	fmt.Printf("  Context window: %d seconds (%.0f minutes)\n", contextWindowSecs, float64(contextWindowSecs)/60)
 	fmt.Printf("  Provider: %s\n", provider)
 	if len(excludeSources) > 0 {
 		fmt.Printf("  Excluding sources: %v\n", excludeSources)
@@ -195,11 +200,15 @@ func backfillSummarizer(start, end time.Time, dataDir string) error {
 
 	current := start
 	count := 0
+	now := time.Now()
 
-	for current.Before(end) {
+	for current.Before(end) && current.Before(now) {
 		focusEnd := current.Add(interval)
 		if focusEnd.After(end) {
 			focusEnd = end
+		}
+		if focusEnd.After(now) {
+			focusEnd = now
 		}
 
 		fmt.Printf("[%s - %s] ", current.Format("15:04"), focusEnd.Format("15:04"))
