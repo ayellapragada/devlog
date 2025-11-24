@@ -116,13 +116,31 @@ func (m *Module) ValidateConfig(config interface{}) error {
 		return fmt.Errorf("config must be a map")
 	}
 
-	if interval, ok := cfg["poll_interval_seconds"].(float64); ok {
+	if val, ok := cfg["poll_interval_seconds"]; ok {
+		var interval float64
+		switch v := val.(type) {
+		case float64:
+			interval = v
+		case int:
+			interval = float64(v)
+		default:
+			return fmt.Errorf("poll_interval_seconds must be a number")
+		}
 		if interval < 1 || interval > 3600 {
 			return fmt.Errorf("poll_interval_seconds must be between 1 and 3600")
 		}
 	}
 
-	if minWords, ok := cfg["min_words"].(float64); ok {
+	if val, ok := cfg["min_words"]; ok {
+		var minWords float64
+		switch v := val.(type) {
+		case float64:
+			minWords = v
+		case int:
+			minWords = float64(v)
+		default:
+			return fmt.Errorf("min_words must be a number")
+		}
 		if minWords < 0 {
 			return fmt.Errorf("min_words must be non-negative")
 		}
@@ -237,13 +255,23 @@ func PollDatabaseContext(ctx context.Context, dbPath string, since time.Time) ([
 
 func (m *Module) CreatePoller(config map[string]interface{}, dataDir string) (poller.Poller, error) {
 	pollInterval := 60.0
-	if interval, ok := config["poll_interval_seconds"].(float64); ok {
-		pollInterval = interval
+	if val, exists := config["poll_interval_seconds"]; exists {
+		switch v := val.(type) {
+		case float64:
+			pollInterval = v
+		case int:
+			pollInterval = float64(v)
+		}
 	}
 
 	minWords := 0
-	if mw, ok := config["min_words"].(float64); ok {
-		minWords = int(mw)
+	if val, exists := config["min_words"]; exists {
+		switch v := val.(type) {
+		case float64:
+			minWords = int(v)
+		case int:
+			minWords = v
+		}
 	}
 
 	dbPathConfig, _ := config["db_path"].(string)

@@ -43,7 +43,7 @@ modules:
 
 ### Configuration Options
 
-- `poll_interval_seconds`: How often to poll the database (default: 60)
+- `poll_interval_seconds`: How often to poll the database in seconds (range: 1-3600, default: 60)
 - `db_path`: Path to the Wispr Flow SQLite database
 - `min_words`: Minimum number of words to capture (default: 1)
 - `include_fields`: List of fields to include from the History table

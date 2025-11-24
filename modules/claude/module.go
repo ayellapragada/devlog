@@ -93,13 +93,31 @@ func (m *Module) ValidateConfig(config interface{}) error {
 		return fmt.Errorf("config must be a map")
 	}
 
-	if interval, ok := cfg["poll_interval_seconds"].(float64); ok {
+	if val, ok := cfg["poll_interval_seconds"]; ok {
+		var interval float64
+		switch v := val.(type) {
+		case float64:
+			interval = v
+		case int:
+			interval = float64(v)
+		default:
+			return fmt.Errorf("poll_interval_seconds must be a number")
+		}
 		if interval < 5 || interval > 600 {
 			return fmt.Errorf("poll_interval_seconds must be between 5 and 600")
 		}
 	}
 
-	if minLen, ok := cfg["min_message_length"].(float64); ok {
+	if val, ok := cfg["min_message_length"]; ok {
+		var minLen float64
+		switch v := val.(type) {
+		case float64:
+			minLen = v
+		case int:
+			minLen = float64(v)
+		default:
+			return fmt.Errorf("min_message_length must be a number")
+		}
 		if minLen < 0 {
 			return fmt.Errorf("min_message_length must be non-negative")
 		}
@@ -121,9 +139,14 @@ func GetProjectsDir(homeDir string, configPath string) string {
 }
 
 func (m *Module) CreatePoller(config map[string]interface{}, dataDir string) (poller.Poller, error) {
-	pollInterval := 30.0
-	if interval, ok := config["poll_interval_seconds"].(float64); ok {
-		pollInterval = interval
+	pollInterval := 60.0
+	if val, exists := config["poll_interval_seconds"]; exists {
+		switch v := val.(type) {
+		case float64:
+			pollInterval = v
+		case int:
+			pollInterval = float64(v)
+		}
 	}
 
 	extractCommands := true
@@ -137,8 +160,13 @@ func (m *Module) CreatePoller(config map[string]interface{}, dataDir string) (po
 	}
 
 	minMessageLength := 10
-	if mml, ok := config["min_message_length"].(float64); ok {
-		minMessageLength = int(mml)
+	if val, exists := config["min_message_length"]; exists {
+		switch v := val.(type) {
+		case float64:
+			minMessageLength = int(v)
+		case int:
+			minMessageLength = v
+		}
 	}
 
 	projectsDirConfig, _ := config["projects_dir"].(string)

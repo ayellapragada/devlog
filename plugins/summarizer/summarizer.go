@@ -33,8 +33,8 @@ type Plugin struct {
 }
 
 type Config struct {
-	IntervalMinutes      int      `json:"interval_minutes"`
-	ContextWindowMinutes int      `json:"context_window_minutes"`
+	IntervalSeconds      int      `json:"interval_seconds"`
+	ContextWindowSeconds int      `json:"context_window_seconds"`
 	ExcludeSources       []string `json:"exclude_sources"`
 }
 
@@ -72,8 +72,8 @@ func (p *Plugin) Uninstall(ctx *install.Context) error {
 
 func (p *Plugin) DefaultConfig() interface{} {
 	return &Config{
-		IntervalMinutes:      30,
-		ContextWindowMinutes: 60,
+		IntervalSeconds:      1800,
+		ContextWindowSeconds: 3600,
 		ExcludeSources:       []string{"clipboard", "wisprflow"},
 	}
 }
@@ -85,8 +85,8 @@ func (p *Plugin) ValidateConfig(config interface{}) error {
 	}
 
 	var interval float64
-	if val, ok := cfgMap["interval_minutes"]; !ok {
-		return errors.NewValidation("interval_minutes", "is required")
+	if val, ok := cfgMap["interval_seconds"]; !ok {
+		return errors.NewValidation("interval_seconds", "is required")
 	} else {
 		switch v := val.(type) {
 		case float64:
@@ -94,16 +94,16 @@ func (p *Plugin) ValidateConfig(config interface{}) error {
 		case int:
 			interval = float64(v)
 		default:
-			return errors.NewValidation("interval_minutes", "must be a number")
+			return errors.NewValidation("interval_seconds", "must be a number")
 		}
 	}
-	if interval < 1 || interval > 1440 {
-		return errors.NewValidation("interval_minutes", "must be between 1 and 1440")
+	if interval < 60 || interval > 86400 {
+		return errors.NewValidation("interval_seconds", "must be between 60 and 86400")
 	}
 
 	var contextWindow float64
-	if val, ok := cfgMap["context_window_minutes"]; !ok {
-		return errors.NewValidation("context_window_minutes", "is required")
+	if val, ok := cfgMap["context_window_seconds"]; !ok {
+		return errors.NewValidation("context_window_seconds", "is required")
 	} else {
 		switch v := val.(type) {
 		case float64:
@@ -111,15 +111,15 @@ func (p *Plugin) ValidateConfig(config interface{}) error {
 		case int:
 			contextWindow = float64(v)
 		default:
-			return errors.NewValidation("context_window_minutes", "must be a number")
+			return errors.NewValidation("context_window_seconds", "must be a number")
 		}
 	}
-	if contextWindow < 1 || contextWindow > 1440 {
-		return errors.NewValidation("context_window_minutes", "must be between 1 and 1440")
+	if contextWindow < 60 || contextWindow > 86400 {
+		return errors.NewValidation("context_window_seconds", "must be between 60 and 86400")
 	}
 
 	if contextWindow < interval {
-		return errors.NewValidation("context_window_minutes", "must be greater than or equal to interval_minutes")
+		return errors.NewValidation("context_window_seconds", "must be greater than or equal to interval_seconds")
 	}
 
 	return nil
@@ -155,8 +155,8 @@ func (p *Plugin) Start(ctx context.Context) error {
 		return errors.WrapPlugin("summarizer", "unmarshal config", err)
 	}
 
-	p.interval = time.Duration(cfg.IntervalMinutes) * time.Minute
-	p.contextWindow = time.Duration(cfg.ContextWindowMinutes) * time.Minute
+	p.interval = time.Duration(cfg.IntervalSeconds) * time.Second
+	p.contextWindow = time.Duration(cfg.ContextWindowSeconds) * time.Second
 	p.excludeSources = make(map[string]bool)
 	for _, source := range cfg.ExcludeSources {
 		p.excludeSources[source] = true

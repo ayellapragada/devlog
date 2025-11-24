@@ -40,7 +40,7 @@ Default configuration in `~/.config/devlog/config.yaml`:
 modules:
   claude:
     enabled: true
-    poll_interval_seconds: 30
+    poll_interval_seconds: 60
     projects_dir: ~/.claude/projects
     extract_commands: true
     extract_file_edits: true
@@ -49,7 +49,7 @@ modules:
 
 ### Configuration Options
 
-- **poll_interval_seconds**: How frequently to check for new conversations (range: 5-600, default: 30)
+- **poll_interval_seconds**: How frequently to check for new conversations in seconds (range: 5-600, default: 60)
 - **projects_dir**: Location of Claude Code projects (default: `~/.claude/projects`)
 - **extract_commands**: Whether to create events for shell commands Claude runs (default: true)
 - **extract_file_edits**: Whether to create events for file edits Claude makes (default: true)
@@ -116,7 +116,7 @@ File modifications made by Claude during a conversation.
 The claude module uses a polling approach to discover new conversations:
 
 ```
-Every 30 seconds:
+Every 60 seconds (configurable):
   ↓
 Scan ~/.claude/projects/* directories
   ↓

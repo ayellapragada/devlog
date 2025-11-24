@@ -4,7 +4,7 @@ Automatically generates intelligent summaries of your development activity using
 
 ## Overview
 
-The summarizer plugin runs on a scheduled basis (e.g., every 15 minutes at :00, :15, :30, :45) and creates concise summaries that highlight:
+The summarizer plugin runs on a scheduled basis (e.g., every 30 minutes at :00 and :30) and creates concise summaries that highlight:
 - What you were working on during the time period
 - Key actions taken and commits made
 - Context switches between tasks
@@ -40,8 +40,8 @@ plugins:
     model: qwen2.5:14b
   summarizer:
     enabled: true
-    interval_minutes: 15
-    context_window_minutes: 60
+    interval_seconds: 1800        # 30 minutes
+    context_window_seconds: 3600  # 60 minutes
 ```
 
 ### With Anthropic (Cloud)
@@ -55,8 +55,8 @@ plugins:
     model: claude-sonnet-4-5-20250929
   summarizer:
     enabled: true
-    interval_minutes: 15
-    context_window_minutes: 60
+    interval_seconds: 1800        # 30 minutes
+    context_window_seconds: 3600  # 60 minutes
 ```
 
 ## Configuration Options
@@ -65,8 +65,9 @@ plugins:
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
-| `interval_minutes` | int | Yes | Time interval between summaries (default: 15, range: 1-1440) |
-| `context_window_minutes` | int | Yes | Historical context window for LLM (default: 60, range: 1-1440, must be >= interval) |
+| `interval_seconds` | int | Yes | Time interval between summaries in seconds (default: 1800 = 30 minutes, range: 60-86400) |
+| `context_window_seconds` | int | Yes | Historical context window for LLM in seconds (default: 3600 = 60 minutes, range: 60-86400, must be >= interval) |
+| `exclude_sources` | []string | No | Event sources to exclude from summaries (default: ["clipboard", "wisprflow"]) |
 
 ### LLM Options
 
@@ -74,13 +75,13 @@ See [llm plugin documentation](../llm/README.md) for LLM configuration options.
 
 ### How Time Windows Work
 
-- **interval_minutes**: How often summaries are generated (e.g., 15 = every 15 minutes)
-- **context_window_minutes**: How far back to look for context (e.g., 60 = past hour)
+- **interval_seconds**: How often summaries are generated (e.g., 1800 = every 30 minutes)
+- **context_window_seconds**: How far back to look for context (e.g., 3600 = past hour)
 
-For example, with `interval_minutes: 15` and `context_window_minutes: 60`:
-- Summary runs at 14:45
-- Focuses on activity from 14:30-14:45 (last 15 minutes)
-- Uses events from 13:45-14:45 (past hour) for context
+For example, with `interval_seconds: 1800` (30 min) and `context_window_seconds: 3600` (60 min):
+- Summary runs at 14:30
+- Focuses on activity from 14:00-14:30 (last 30 minutes)
+- Uses events from 13:30-14:30 (past hour) for context
 
 ## Installation
 

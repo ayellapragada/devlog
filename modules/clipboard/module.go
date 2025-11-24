@@ -40,7 +40,7 @@ func (m *Module) Install(ctx *install.Context) error {
 	ctx.Log("  Clipboard content is tracked automatically while the daemon is running.")
 	ctx.Log("")
 	ctx.Log("Configuration:")
-	ctx.Log("  • Poll interval: 3s (configurable)")
+	ctx.Log("  • Poll interval: 5 seconds (configurable)")
 	ctx.Log("")
 	ctx.Log("✓ Clipboard tracking will run in the background when daemon starts")
 
@@ -69,10 +69,10 @@ func (m *Module) Uninstall(ctx *install.Context) error {
 
 func (m *Module) DefaultConfig() interface{} {
 	return map[string]interface{}{
-		"poll_interval":      "5s",
-		"max_length":         10000,
-		"min_length":         3,
-		"dedup_history_size": 5,
+		"poll_interval_seconds": 5,
+		"max_length":            10000,
+		"min_length":            3,
+		"dedup_history_size":    5,
 	}
 }
 
@@ -82,19 +82,61 @@ func (m *Module) ValidateConfig(config interface{}) error {
 		return fmt.Errorf("config must be a map")
 	}
 
-	if maxLength, ok := cfg["max_length"].(float64); ok {
+	if val, ok := cfg["poll_interval_seconds"]; ok {
+		var interval float64
+		switch v := val.(type) {
+		case float64:
+			interval = v
+		case int:
+			interval = float64(v)
+		default:
+			return fmt.Errorf("poll_interval_seconds must be a number")
+		}
+		if interval < 1 || interval > 3600 {
+			return fmt.Errorf("poll_interval_seconds must be between 1 and 3600")
+		}
+	}
+
+	if val, ok := cfg["max_length"]; ok {
+		var maxLength float64
+		switch v := val.(type) {
+		case float64:
+			maxLength = v
+		case int:
+			maxLength = float64(v)
+		default:
+			return fmt.Errorf("max_length must be a number")
+		}
 		if maxLength < 1 || maxLength > 1000000 {
 			return fmt.Errorf("max_length must be between 1 and 1000000")
 		}
 	}
 
-	if minLength, ok := cfg["min_length"].(float64); ok {
+	if val, ok := cfg["min_length"]; ok {
+		var minLength float64
+		switch v := val.(type) {
+		case float64:
+			minLength = v
+		case int:
+			minLength = float64(v)
+		default:
+			return fmt.Errorf("min_length must be a number")
+		}
 		if minLength < 0 {
 			return fmt.Errorf("min_length cannot be negative")
 		}
 	}
 
-	if dedupSize, ok := cfg["dedup_history_size"].(float64); ok {
+	if val, ok := cfg["dedup_history_size"]; ok {
+		var dedupSize float64
+		switch v := val.(type) {
+		case float64:
+			dedupSize = v
+		case int:
+			dedupSize = float64(v)
+		default:
+			return fmt.Errorf("dedup_history_size must be a number")
+		}
 		if dedupSize < 1 || dedupSize > 100 {
 			return fmt.Errorf("dedup_history_size must be between 1 and 100")
 		}
@@ -104,30 +146,47 @@ func (m *Module) ValidateConfig(config interface{}) error {
 }
 
 func (m *Module) CreatePoller(config map[string]interface{}, dataDir string) (poller.Poller, error) {
-	pollInterval := "3s"
-	if interval, ok := config["poll_interval"].(string); ok {
-		pollInterval = interval
+	pollInterval := 5.0
+	if val, exists := config["poll_interval_seconds"]; exists {
+		switch v := val.(type) {
+		case float64:
+			pollInterval = v
+		case int:
+			pollInterval = float64(v)
+		}
 	}
 
 	maxLength := 10000
-	if ml, ok := config["max_length"].(float64); ok {
-		maxLength = int(ml)
+	if val, exists := config["max_length"]; exists {
+		switch v := val.(type) {
+		case float64:
+			maxLength = int(v)
+		case int:
+			maxLength = v
+		}
 	}
 
 	minLength := 1
-	if ml, ok := config["min_length"].(float64); ok {
-		minLength = int(ml)
+	if val, exists := config["min_length"]; exists {
+		switch v := val.(type) {
+		case float64:
+			minLength = int(v)
+		case int:
+			minLength = v
+		}
 	}
 
 	dedupHistorySize := 5
-	if dhs, ok := config["dedup_history_size"].(float64); ok {
-		dedupHistorySize = int(dhs)
+	if val, exists := config["dedup_history_size"]; exists {
+		switch v := val.(type) {
+		case float64:
+			dedupHistorySize = int(v)
+		case int:
+			dedupHistorySize = v
+		}
 	}
 
-	duration, err := time.ParseDuration(pollInterval)
-	if err != nil {
-		duration = 3 * time.Second
-	}
+	duration := time.Duration(pollInterval) * time.Second
 
 	poller, err := NewPoller(dataDir, duration, maxLength, minLength, dedupHistorySize)
 	if err != nil {

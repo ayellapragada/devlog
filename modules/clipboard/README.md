@@ -36,18 +36,18 @@ Default configuration in `~/.config/devlog/config.yaml`:
 modules:
   clipboard:
     enabled: true
-    poll_interval: 3s           # How often to check clipboard
+    poll_interval_seconds: 5     # How often to check clipboard
     max_length: 10000            # Max characters to capture
-    min_length: 1                # Ignore content shorter than this
+    min_length: 3                # Ignore content shorter than this
     dedup_history_size: 5        # Remember last N items for deduplication
 ```
 
 ### Configuration Options
 
-- **poll_interval**: How frequently to check the clipboard (default: 3s)
-- **max_length**: Maximum characters to capture (longer content is truncated)
-- **min_length**: Ignore content shorter than this (avoids single characters)
-- **dedup_history_size**: Number of recent clipboard items to remember for deduplication
+- **poll_interval_seconds**: How frequently to check the clipboard in seconds (range: 1-3600, default: 5)
+- **max_length**: Maximum characters to capture (longer content is truncated, range: 1-1000000, default: 10000)
+- **min_length**: Ignore content shorter than this (avoids single characters, default: 3)
+- **dedup_history_size**: Number of recent clipboard items to remember for deduplication (range: 1-100, default: 5)
 
 ## Captured Events
 
@@ -71,7 +71,7 @@ Triggered when new text is copied to the clipboard.
 
 The clipboard module uses a polling approach:
 ```
-Every 3 seconds:
+Every 5 seconds (configurable):
   ↓
 Read clipboard content
   ↓
@@ -178,7 +178,7 @@ devlog daemon status
 
 **Test manually:**
 1. Copy some text
-2. Wait 3 seconds
+2. Wait 5 seconds (or your configured poll interval)
 3. Run `devlog status` and look for clipboard events
 
 ### Duplicate events
@@ -193,7 +193,7 @@ If you're seeing duplicate events for the same clipboard content:
 
 If clipboard polling is causing issues:
 
-1. Increase `poll_interval` (e.g., "5s" or "10s")
+1. Increase `poll_interval_seconds` (e.g., 10 or 30 seconds)
 2. Decrease `max_length` to reduce processing time
 3. Check system clipboard access (some tools interfere)
 
