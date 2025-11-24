@@ -161,7 +161,12 @@ func (p *Plugin) Start(ctx context.Context) error {
 	for _, source := range cfg.ExcludeSources {
 		p.excludeSources[source] = true
 	}
-	p.logger = logger.Default()
+
+	if log, ok := ctx.Value(contextkeys.Logger).(*logger.Logger); ok && log != nil {
+		p.logger = log
+	} else {
+		p.logger = logger.Default()
+	}
 
 	dataDir, err := config.DataDir()
 	if err != nil {

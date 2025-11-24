@@ -79,7 +79,7 @@ func (m *Module) Uninstall(ctx *install.Context) error {
 
 func (m *Module) DefaultConfig() interface{} {
 	return map[string]interface{}{
-		"poll_interval_seconds": 30,
+		"poll_interval_seconds": 60,
 		"projects_dir":          "~/.claude/projects",
 		"extract_commands":      true,
 		"extract_file_edits":    true,

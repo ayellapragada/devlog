@@ -29,7 +29,7 @@ func setupTestServer(t *testing.T) (*Server, *storage.Storage) {
 	cfg := config.DefaultConfig()
 	cfg.Modules["git"] = config.ComponentConfig{Enabled: true}
 	cfg.Modules["shell"] = config.ComponentConfig{Enabled: true}
-	server := NewServer(store, func() *config.Config { return cfg })
+	server := NewServer(store, func() *config.Config { return cfg }, nil)
 	return server, store
 }
 

@@ -39,8 +39,10 @@ type Server struct {
 	startTime    time.Time
 }
 
-func NewServer(storage *storage.Storage, configGetter func() *config.Config) *Server {
-	log := logger.Default()
+func NewServer(storage *storage.Storage, configGetter func() *config.Config, log *logger.Logger) *Server {
+	if log == nil {
+		log = logger.Default()
+	}
 	eventService := services.NewEventService(storage, configGetter, log)
 	cfg := configGetter()
 	return &Server{

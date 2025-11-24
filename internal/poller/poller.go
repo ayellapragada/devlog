@@ -197,7 +197,6 @@ func (m *Manager) doPoll(ctx context.Context, poller Poller) {
 	}
 
 	if len(events) == 0 {
-		pollerLogger.Debug("no new events")
 		return
 	}
 

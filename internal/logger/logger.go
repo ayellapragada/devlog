@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -19,11 +20,7 @@ type Logger struct {
 }
 
 func New(level slog.Level) *Logger {
-	opts := &slog.HandlerOptions{
-		Level:     level,
-		AddSource: false,
-	}
-	handler := slog.NewJSONHandler(os.Stdout, opts)
+	handler := newCompactHandler(os.Stdout, level)
 	return &Logger{Logger: slog.New(handler)}
 }
 
@@ -56,18 +53,27 @@ func NewFileLogger(logDir string, level slog.Level, fileOnly bool) (*Logger, err
 		return nil, err
 	}
 
-	opts := &slog.HandlerOptions{
-		Level:     level,
-		AddSource: false,
+	if fileOnly {
+		handler := slog.NewJSONHandler(file, &slog.HandlerOptions{
+			Level:     level,
+			AddSource: false,
+		})
+		return &Logger{
+			Logger: slog.New(handler),
+			file:   file,
+			logDir: logDir,
+		}, nil
 	}
 
-	var writer io.Writer
-	if fileOnly {
-		writer = file
-	} else {
-		writer = io.MultiWriter(os.Stdout, file)
+	stdoutHandler := newCompactHandler(os.Stdout, level)
+	fileHandler := slog.NewJSONHandler(file, &slog.HandlerOptions{
+		Level:     level,
+		AddSource: false,
+	})
+
+	handler := &multiHandler{
+		handlers: []slog.Handler{stdoutHandler, fileHandler},
 	}
-	handler := slog.NewJSONHandler(writer, opts)
 
 	return &Logger{
 		Logger: slog.New(handler),
@@ -87,10 +93,7 @@ func NewDualLogger(logDir string, stdoutLevel, fileLevel slog.Level) (*Logger, e
 		return nil, err
 	}
 
-	stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level:     stdoutLevel,
-		AddSource: false,
-	})
+	stdoutHandler := newCompactHandler(os.Stdout, stdoutLevel)
 
 	fileHandler := slog.NewJSONHandler(file, &slog.HandlerOptions{
 		Level:     fileLevel,
@@ -169,4 +172,54 @@ func DefaultFileOnly(logDir string) (*Logger, error) {
 
 func DefaultDual(logDir string) (*Logger, error) {
 	return NewDualLogger(logDir, slog.LevelInfo, slog.LevelDebug)
+}
+
+type compactHandler struct {
+	handler slog.Handler
+	writer  io.Writer
+	level   slog.Level
+}
+
+func newCompactHandler(w io.Writer, level slog.Level) *compactHandler {
+	return &compactHandler{
+		handler: slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level}),
+		writer:  w,
+		level:   level,
+	}
+}
+
+func (h *compactHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.level
+}
+
+func (h *compactHandler) Handle(ctx context.Context, r slog.Record) error {
+	timeStr := r.Time.Format("15:04:05")
+	level := r.Level.String()
+	msg := r.Message
+
+	fmt.Fprintf(h.writer, "%s [%s] %s", timeStr, level, msg)
+
+	r.Attrs(func(a slog.Attr) bool {
+		fmt.Fprintf(h.writer, " %s=%v", a.Key, a.Value)
+		return true
+	})
+
+	fmt.Fprintln(h.writer)
+	return nil
+}
+
+func (h *compactHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &compactHandler{
+		handler: h.handler.WithAttrs(attrs),
+		writer:  h.writer,
+		level:   h.level,
+	}
+}
+
+func (h *compactHandler) WithGroup(name string) slog.Handler {
+	return &compactHandler{
+		handler: h.handler.WithGroup(name),
+		writer:  h.writer,
+		level:   h.level,
+	}
 }

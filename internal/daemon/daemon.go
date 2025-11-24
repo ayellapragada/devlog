@@ -169,7 +169,7 @@ func (d *Daemon) setupResources(ctx context.Context) error {
 }
 
 func (d *Daemon) startServices(ctx context.Context) error {
-	apiServer := api.NewServer(d.storage, d.getConfig)
+	apiServer := api.NewServer(d.storage, d.getConfig, d.logger)
 	mux := apiServer.SetupRoutes()
 
 	addr := fmt.Sprintf("127.0.0.1:%d", d.config.HTTP.Port)

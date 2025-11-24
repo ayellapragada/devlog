@@ -114,6 +114,7 @@ func (d *Daemon) startPlugin(parentCtx context.Context, plugin plugins.Plugin, p
 
 	pluginCtx, cancel := context.WithCancel(parentCtx)
 	pluginConfigCtx := context.WithValue(pluginCtx, contextkeys.PluginConfig, configForPlugin)
+	pluginConfigCtx = context.WithValue(pluginConfigCtx, contextkeys.Logger, d.logger)
 
 	instance := &pluginInstance{
 		ctx:    pluginCtx,
