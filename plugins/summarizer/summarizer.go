@@ -581,15 +581,37 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 			}
 		}
 
+		if focusStart.Day() != focusEnd.Day() || focusStart.Month() != focusEnd.Month() || focusStart.Year() != focusEnd.Year() {
+			section := p.buildInactivePeriodSection(focusStart, focusEnd)
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				return fmt.Errorf("open summary file: %w", err)
+			}
+			defer f.Close()
+			if _, err := f.WriteString(section); err != nil {
+				return fmt.Errorf("write inactive period: %w", err)
+			}
+			return nil
+		}
+
 		lastInactiveStartTime, _ := time.Parse("15:04", lastInactiveStart)
 		focusEndTime, _ := time.Parse("15:04", focusEnd.Format("15:04"))
 
 		if focusEndTime.Before(lastInactiveStartTime) {
-			focusEndTime = focusEndTime.Add(24 * time.Hour)
+			section := p.buildInactivePeriodSection(focusStart, focusEnd)
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				return fmt.Errorf("open summary file: %w", err)
+			}
+			defer f.Close()
+			if _, err := f.WriteString(section); err != nil {
+				return fmt.Errorf("write inactive period: %w", err)
+			}
+			return nil
 		}
 
-		duration := focusEndTime.Sub(lastInactiveStartTime)
-		hours := duration.Hours()
+		cumulativeDuration := focusEndTime.Sub(lastInactiveStartTime)
+		hours := cumulativeDuration.Hours()
 
 		var durationStr string
 		if hours >= 1 {
@@ -599,7 +621,7 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 				durationStr = fmt.Sprintf(" (%.1f hours)", hours)
 			}
 		} else {
-			minutes := int(duration.Minutes())
+			minutes := int(cumulativeDuration.Minutes())
 			durationStr = fmt.Sprintf(" (%d minutes)", minutes)
 		}
 
