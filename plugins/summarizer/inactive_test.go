@@ -159,17 +159,17 @@ func TestUpdateOrCreateInactivePeriod_CrossingMidnight(t *testing.T) {
 
 	content, _ := os.ReadFile(summaryFile)
 
-	if !strings.Contains(string(content), "## 23:00 - 23:30") {
-		t.Errorf("expected first period to remain unchanged, got:\n%s", content)
+	if !strings.Contains(string(content), "## 23:00 - 00:00") {
+		t.Errorf("expected periods to merge across midnight, got:\n%s", content)
 	}
 
-	if !strings.Contains(string(content), "## 23:30 - 00:00") {
-		t.Errorf("expected second period as separate (day boundary), got:\n%s", content)
+	if strings.Contains(string(content), "23:30") {
+		t.Errorf("should not contain 23:30 after merge, got:\n%s", content)
 	}
 
 	lines := strings.Count(string(content), "No development activity")
-	if lines != 2 {
-		t.Errorf("expected exactly 2 inactive messages (day boundary prevents merge), got %d:\n%s", lines, content)
+	if lines != 1 {
+		t.Errorf("expected exactly 1 inactive message (merged across midnight), got %d:\n%s", lines, content)
 	}
 }
 
@@ -211,5 +211,41 @@ func TestUpdateOrCreateInactivePeriod_NextDayStart(t *testing.T) {
 	lines := strings.Count(string(content), "No development activity")
 	if lines != 1 {
 		t.Errorf("expected exactly 1 inactive message, got %d:\n%s", lines, content)
+	}
+}
+
+func TestUpdateOrCreateInactivePeriod_FullDay(t *testing.T) {
+	tmpDir := t.TempDir()
+	summaryFile := filepath.Join(tmpDir, "summary_2025-11-26.md")
+
+	p := &Plugin{
+		logger:   logger.Default(),
+		interval: 30 * time.Minute,
+	}
+
+	start, _ := time.Parse("2006-01-02 15:04", "2025-11-26 00:00")
+	end, _ := time.Parse("2006-01-02 15:04", "2025-11-27 00:00")
+
+	current := start
+	for current.Before(end) {
+		next := current.Add(30 * time.Minute)
+		if next.After(end) {
+			next = end
+		}
+		if err := p.updateOrCreateInactivePeriod(summaryFile, current, next); err != nil {
+			t.Fatalf("inactive period %s-%s failed: %v", current.Format("15:04"), next.Format("15:04"), err)
+		}
+		current = next
+	}
+
+	content, _ := os.ReadFile(summaryFile)
+
+	if !strings.Contains(string(content), "## 00:00 - 00:00 (24 hours)") {
+		t.Errorf("expected full day as single period '00:00 - 00:00 (24 hours)', got:\n%s", content)
+	}
+
+	lines := strings.Count(string(content), "No development activity")
+	if lines != 1 {
+		t.Errorf("expected exactly 1 inactive message for full day, got %d:\n%s", lines, content)
 	}
 }

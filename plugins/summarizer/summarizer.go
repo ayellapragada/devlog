@@ -555,6 +555,7 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 	if len(inactiveMatches) > 0 {
 		lastInactiveMatch := inactiveMatches[len(inactiveMatches)-1]
 		lastInactiveStart := string(content[lastInactiveMatch[2]:lastInactiveMatch[3]])
+		lastInactiveEnd := string(content[lastInactiveMatch[4]:lastInactiveMatch[5]])
 		lastInactiveIdx := lastInactiveMatch[0]
 
 		for _, match := range allMatches {
@@ -581,7 +582,8 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 			}
 		}
 
-		if focusStart.Day() != focusEnd.Day() || focusStart.Month() != focusEnd.Month() || focusStart.Year() != focusEnd.Year() {
+		lastInactiveEndTime, err := time.Parse("15:04", lastInactiveEnd)
+		if err != nil {
 			section := p.buildInactivePeriodSection(focusStart, focusEnd)
 			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
@@ -594,44 +596,46 @@ func (p *Plugin) updateOrCreateInactivePeriod(path string, focusStart, focusEnd 
 			return nil
 		}
 
-		lastInactiveStartTime, _ := time.Parse("15:04", lastInactiveStart)
-		focusEndTime, _ := time.Parse("15:04", focusEnd.Format("15:04"))
+		focusStartTime, _ := time.Parse("15:04", focusStart.Format("15:04"))
 
-		if focusEndTime.Before(lastInactiveStartTime) {
-			section := p.buildInactivePeriodSection(focusStart, focusEnd)
-			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				return fmt.Errorf("open summary file: %w", err)
-			}
-			defer f.Close()
-			if _, err := f.WriteString(section); err != nil {
-				return fmt.Errorf("write inactive period: %w", err)
-			}
-			return nil
+		maxGap := p.interval
+		if maxGap == 0 {
+			maxGap = 24 * time.Hour
 		}
 
-		cumulativeDuration := focusEndTime.Sub(lastInactiveStartTime)
-		hours := cumulativeDuration.Hours()
+		if focusStartTime.Equal(lastInactiveEndTime) || (focusStartTime.After(lastInactiveEndTime) && focusStartTime.Sub(lastInactiveEndTime) <= maxGap) {
+			lastInactiveStartTime, _ := time.Parse("15:04", lastInactiveStart)
+			focusEndTime, _ := time.Parse("15:04", focusEnd.Format("15:04"))
 
-		var durationStr string
-		if hours >= 1 {
-			if hours == float64(int(hours)) {
-				durationStr = fmt.Sprintf(" (%.0f hours)", hours)
+			var cumulativeDuration time.Duration
+			if focusEndTime.Before(lastInactiveStartTime) || (focusEndTime.Equal(lastInactiveStartTime) && focusEnd.Hour() == 0 && focusEnd.Minute() == 0) {
+				cumulativeDuration = (24*time.Hour - lastInactiveStartTime.Sub(time.Time{})) + focusEndTime.Sub(time.Time{})
 			} else {
-				durationStr = fmt.Sprintf(" (%.1f hours)", hours)
+				cumulativeDuration = focusEndTime.Sub(lastInactiveStartTime)
 			}
-		} else {
-			minutes := int(cumulativeDuration.Minutes())
-			durationStr = fmt.Sprintf(" (%d minutes)", minutes)
+
+			hours := cumulativeDuration.Hours()
+
+			var durationStr string
+			if hours >= 1 {
+				if hours == float64(int(hours)) {
+					durationStr = fmt.Sprintf(" (%.0f hours)", hours)
+				} else {
+					durationStr = fmt.Sprintf(" (%.1f hours)", hours)
+				}
+			} else {
+				minutes := int(cumulativeDuration.Minutes())
+				durationStr = fmt.Sprintf(" (%d minutes)", minutes)
+			}
+
+			updatedSection := fmt.Sprintf("## %s - %s%s\n\nNo development activity recorded during this period.\n\n",
+				lastInactiveStart,
+				focusEnd.Format("15:04"),
+				durationStr)
+
+			newContent := string(content[:lastInactiveMatch[0]]) + updatedSection + string(content[lastInactiveMatch[1]:])
+			return os.WriteFile(path, []byte(newContent), 0644)
 		}
-
-		updatedSection := fmt.Sprintf("## %s - %s%s\n\nNo development activity recorded during this period.\n\n",
-			lastInactiveStart,
-			focusEnd.Format("15:04"),
-			durationStr)
-
-		newContent := string(content[:lastInactiveMatch[0]]) + updatedSection + string(content[lastInactiveMatch[1]:])
-		return os.WriteFile(path, []byte(newContent), 0644)
 	}
 
 	section := p.buildInactivePeriodSection(focusStart, focusEnd)
