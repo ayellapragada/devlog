@@ -16,6 +16,12 @@ import (
 //go:embed hooks/tmux-hooks.conf
 var tmuxHooksConfig string
 
+//go:embed hooks/devlog-tmux-wrapper.sh
+var tmuxWrapperScript string
+
+//go:embed hooks/devlog-tmux-common.sh
+var tmuxCommonLib string
+
 type Module struct{}
 
 func (m *Module) Name() string {
@@ -47,8 +53,41 @@ func (m *Module) Install(ctx *install.Context) error {
 		}
 	}
 
+	commonLibPath := filepath.Join(configDir, "devlog-tmux-common.sh")
+	if err := os.WriteFile(commonLibPath, []byte(tmuxCommonLib), 0644); err != nil {
+		return &modules.InstallError{
+			Component: "tmux common library",
+			File:      commonLibPath,
+			Err:       err,
+			RecoverySteps: []string{
+				fmt.Sprintf("Check file permissions: ls -la %s", filepath.Dir(commonLibPath)),
+				fmt.Sprintf("Ensure directory exists: mkdir -p %s", filepath.Dir(commonLibPath)),
+				"Check if file is write-protected",
+			},
+		}
+	}
+
+	wrapperPath := filepath.Join(configDir, "devlog-tmux-wrapper.sh")
+	if err := os.WriteFile(wrapperPath, []byte(tmuxWrapperScript), 0755); err != nil {
+		return &modules.InstallError{
+			Component: "tmux wrapper script",
+			File:      wrapperPath,
+			Err:       err,
+			RecoverySteps: []string{
+				fmt.Sprintf("Check file permissions: ls -la %s", filepath.Dir(wrapperPath)),
+				fmt.Sprintf("Ensure directory exists: mkdir -p %s", filepath.Dir(wrapperPath)),
+				"Check if file is write-protected",
+			},
+		}
+	}
+
+	ctx.Log("✓ Installed common library to %s", commonLibPath)
+	ctx.Log("✓ Installed wrapper script to %s", wrapperPath)
+
 	hooksPath := filepath.Join(configDir, "tmux-hooks.conf")
-	if err := os.WriteFile(hooksPath, []byte(tmuxHooksConfig), 0644); err != nil {
+	// Replace placeholder with actual wrapper path
+	hooksConfig := strings.ReplaceAll(tmuxHooksConfig, "{{WRAPPER_PATH}}", wrapperPath)
+	if err := os.WriteFile(hooksPath, []byte(hooksConfig), 0644); err != nil {
 		return &modules.InstallError{
 			Component: "tmux integration",
 			File:      hooksPath,
@@ -99,12 +138,28 @@ func (m *Module) Uninstall(ctx *install.Context) error {
 
 	configDir := filepath.Join(ctx.HomeDir, ".config", "devlog")
 	hooksPath := filepath.Join(configDir, "tmux-hooks.conf")
+	wrapperPath := filepath.Join(configDir, "devlog-tmux-wrapper.sh")
+	commonLibPath := filepath.Join(configDir, "devlog-tmux-common.sh")
 
 	if _, err := os.Stat(hooksPath); err == nil {
 		if err := os.Remove(hooksPath); err != nil {
 			return fmt.Errorf("remove tmux hooks config: %w", err)
 		}
 		ctx.Log("✓ Removed tmux hooks config from %s", hooksPath)
+	}
+
+	if _, err := os.Stat(wrapperPath); err == nil {
+		if err := os.Remove(wrapperPath); err != nil {
+			return fmt.Errorf("remove tmux wrapper script: %w", err)
+		}
+		ctx.Log("✓ Removed wrapper script from %s", wrapperPath)
+	}
+
+	if _, err := os.Stat(commonLibPath); err == nil {
+		if err := os.Remove(commonLibPath); err != nil {
+			return fmt.Errorf("remove tmux common library: %w", err)
+		}
+		ctx.Log("✓ Removed common library from %s", commonLibPath)
 	}
 
 	tmuxConfPath := filepath.Join(ctx.HomeDir, ".tmux.conf")
